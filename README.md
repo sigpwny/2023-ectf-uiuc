@@ -1,3 +1,11 @@
+# SIGPwny Instructions
+
+```
+git clone https://github.com/sigpwny/2023-ectf-insecure-example.git --recurse-submodules
+   if you already cloned without `--recurse-submodules` run `git submodule update --init --recursive`
+git remote add public https://github.com/mitre-cyber-academy/2023-ectf-insecure-example
+```
+
 # 2023 MITRE eCTF Challenge: Protected Automotive Remote Entry Device (PARED)
 This repository contains an example reference system for MITRE's 2023 Embedded System CTF
 (eCTF) - see https://ectf.mitre.org/ for details. This code is incomplete, insecure, and 
