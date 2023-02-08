@@ -38,7 +38,7 @@ Remember that you can run `rustup default stable` to switch back to stable if yo
 
 ### Does it work?
 ```
-$ cargo build --debug
+$ cargo build --bin sigpwny-ectf-2023
 ```
 *Hopefully* you don't get errors. If you do, ~~cry~~ ping @Shorden on Discord and I will try to help.
 
@@ -93,6 +93,8 @@ Please PR or DM me so I can add to this list as things come up.
 ### OpenOCD
 - `Error: SRST error`: This is believed to be a problem with OpenOCD. This should not cause any problems.
 - `Error: Can't find openocd.cfg`: Make sure you're in the project root when you run `openocd`. Also... please use the config.
+### GDB
+- Make sure if you use `gdb-multiarch` instead of `arm-none-eabi-gdb` you change the corresponding line in `.cargo/config.toml`.
 
 ## Resources
 - [The Rust Programming Language](https://doc.rust-lang.org/book/)

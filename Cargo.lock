@@ -12,17 +12,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arrgggg"
-version = "0.1.0"
-dependencies = [
- "cortex-m 0.7.7",
- "cortex-m-rt",
- "cortex-m-semihosting",
- "panic-halt",
- "tm4c123x-hal",
-]
-
-[[package]]
 name = "as-slice"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -234,6 +223,18 @@ name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
+
+[[package]]
+name = "sigpwny-ectf-2023"
+version = "0.1.0"
+dependencies = [
+ "cortex-m 0.7.7",
+ "cortex-m-rt",
+ "cortex-m-semihosting",
+ "embedded-hal",
+ "panic-halt",
+ "tm4c123x-hal",
+]
 
 [[package]]
 name = "stable_deref_trait"
