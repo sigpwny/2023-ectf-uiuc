@@ -54,6 +54,13 @@ Remember that you can run `rustup default stable` to switch back to stable if yo
 
 Run the [official installer](https://www.rust-lang.org/tools/install) and follow the instructions. (you can do that right?)
 
+Then open a terminal window and run the below commands to switch to nightly and add Cortex-M target.
+```
+rustup default nightly
+
+rustup target add thumbv7em-none-eabihf
+```
+
 Double check you're all good:
 ```
 rustc -V
