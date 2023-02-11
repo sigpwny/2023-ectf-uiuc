@@ -10,6 +10,12 @@ You can download the `arm-none-eabi` tools and libraries [here](https://develope
 $ brew install armmbed/formulae/arm-none-eabi-gcc
 ```
 
+**Windows**
+
+Use the [Windows 32-bit Installer](https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-win32.exe?rev=29bb46cfa0434fbda93abb33c1d480e6&hash=B2C5AAE07841929A0D0BF460896D6E52). 
+
+*Note: Make sure to check the `Add path to environment variable` option before you click the Finish button for the installation.*
+
 ### OpenOCD
 Use your package manager ¯\\\_\(ツ\)\_/¯
 
@@ -18,9 +24,17 @@ Use your package manager ¯\\\_\(ツ\)\_/¯
 $ brew install openocd
 ```
 
+**Windows**
+
+Use [MSYS2](http://msys2.org/)(make sure it is up to date):
+```
+pacman -S openocd
+```
+
 ## Setup
 
 ### Getting Rust
+**macOS**
 ```
 # install Rust using rustup
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -32,6 +46,17 @@ $ rustup target add thumbv7em-none-eabihf
 Double check you're all good:
 ```
 $ rustc -V
+rustc 1.69.0-nightly (50d3ba5bc 2023-02-04)
+```
+Remember that you can run `rustup default stable` to switch back to stable if you do other Rust development on your machine.
+
+**Windows**
+
+Run the [official installer](https://www.rust-lang.org/tools/install) and follow the instructions. (you can do that right?)
+
+Double check you're all good:
+```
+rustc -V
 rustc 1.69.0-nightly (50d3ba5bc 2023-02-04)
 ```
 Remember that you can run `rustup default stable` to switch back to stable if you do other Rust development on your machine.
