@@ -1,30 +1,42 @@
 #![no_std]
 #![no_main]
 
-use cortex_m_semihosting::{hprintln};
-// pick a panicking behavior
-use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
-// use panic_abort as _; // requires nightly
-// use panic_itm as _; // logs messages over ITM; requires ITM support
-// use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
-
-use cortex_m::asm;
 use cortex_m_rt::entry;
-#[allow(unused_imports)]
-use tm4c123x_hal;
+use cortex_m_semihosting::hprintln;
+
+use embedded_hal::digital::v2::OutputPin;
+
+use tiva::{driverlib, setup_board, Board};
 
 #[entry]
 fn main() -> ! {
-    unsafe {
-        InitSystem();
-    }
-    hprintln!("It works!!!").unwrap();
+    let mut board: Board = setup_board();
+    let _ = board; // suppress unused warning
+
+    hprintln!("Hello, world!").unwrap();
+
+    let mut toggle = true;
     loop {
-        asm::wfi();
+        if driverlib::check_switch() {
+            hprintln!("SW1 is pressed").unwrap();
+        } else {
+            hprintln!("SW1 is not pressed").unwrap();
+        }
+        driverlib::uart_writeb_host('a' as u8);
+
+        if toggle {
+            board.led_red.set_high().unwrap();
+        } else {
+            board.led_red.set_low().unwrap();
+        }
+        toggle = !toggle;
+
+        wait(1e5 as u32);
     }
 }
 
-#[link(name = "drivermini")]
-extern "C" {
-    fn InitSystem();
+fn wait(length: u32) {
+    for _ in 0..length {
+        cortex_m::asm::nop();
+    }
 }

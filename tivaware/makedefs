@@ -93,6 +93,9 @@ AFLAGS=-mthumb \
        ${CPU}  \
        -MD
 
+# Part name of the eCTF development boards
+PART=TM4C123GH6PM
+
 #
 # The flags passed to the compiler.
 #

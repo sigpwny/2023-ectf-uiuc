@@ -57,11 +57,16 @@ IPATH=..
 #
 all: ${COMPILER}
 all: ${COMPILER}/libdriver.a
-all: mini
+all: wrapper
 
-# Copy to lib directory once we're done to be access by rust toolchain
-mini: ${COMPILER}/libdrivermini.a
-	@cp $^ ${ROOT}/lib
+#
+# Build a stripped down version of the driver library with only the tools we
+# need for eCTF.
+#
+wrapper: ${COMPILER}/wrapper.o
+	@cp $^ ${ROOT}/lib/libdriverwrapper.so
+# build wrapper with -O3
+${COMPILER}/wrapper.o: CFLAGS+=-O3 -g
 
 #
 # The rule to clean out all the build products.
@@ -110,12 +115,6 @@ ${COMPILER}/libdriver.a: ${COMPILER}/uart.o
 ${COMPILER}/libdriver.a: ${COMPILER}/udma.o
 ${COMPILER}/libdriver.a: ${COMPILER}/usb.o
 ${COMPILER}/libdriver.a: ${COMPILER}/watchdog.o
-
-#
-# Rules for building a stripped down version of the driver library with only the
-# tools we need for eCTF.
-#
-${COMPILER}/libdrivermini.a: ${COMPILER}/mini.o
 
 #
 # Include the automatically generated dependency files.
