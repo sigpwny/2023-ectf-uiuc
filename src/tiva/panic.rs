@@ -1,5 +1,6 @@
 use crate::tiva::board;
 use core::panic::PanicInfo;
+use cortex_m_semihosting::hprintln;
 
 /// Required by the compiler.
 #[no_mangle]
@@ -22,5 +23,6 @@ pub extern "C" fn _Unwind_Resume() -> ! {
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
+    hprintln!("PANIC: {:?}", _info).unwrap();
     board::panic();
 }
