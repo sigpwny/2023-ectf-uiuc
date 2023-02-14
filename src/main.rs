@@ -15,9 +15,16 @@ use tm4c123x_hal;
 
 #[entry]
 fn main() -> ! {
+    unsafe {
+        InitSystem();
+    }
     hprintln!("It works!!!").unwrap();
     loop {
         asm::wfi();
     }
 }
 
+#[link(name = "drivermini")]
+extern "C" {
+    fn InitSystem();
+}
