@@ -12,13 +12,10 @@ cortex-m-semihosting = "0.3.3"
 panic-halt = "0.2.0"
 tm4c123x-hal = { version = "0.10.2", features = ["rt"] }
 embedded-hal = "0.2.7"
-linked_list_allocator = "0.10.4"
 
-# have to use rand=0.7, rand_core=0.5, and rand_chacha=0.2 to match versions with ed25519-dalek
-rand = { version = "0.7", default-features = false }
-rand_core = { version = "0.5", default-features = false }
-rand_chacha = { version = "0.2", default-features = false }
-ed25519-dalek = { version = "1.0.1", default-features = false, features = ["u32_backend", "rand"] }
+rand_chacha = { version = "0.3", default-features = false }
+ecdsa = { version = "0.15.1", default-features = false }
+k256 = { version = "0.12.0", default-features = false, features = ["ecdsa"] }
 
 # Uncomment for the panic example.
 # panic-itm = "0.4.1"
@@ -44,5 +41,5 @@ opt-level = "s" # small binaries so they fit on the board
 codegen-units = 1 # better optimizations
 debug = true # symbols are nice and they don't increase the size on Flash
 lto = true # better optimizations
-opt-level = "s" # we want small binaries
+opt-level = "z" # we want small binaries
 panic = "abort"
