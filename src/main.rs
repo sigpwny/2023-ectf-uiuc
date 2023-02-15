@@ -21,10 +21,7 @@ fn main() -> ! {
 fn crypto_example() {
     // key generation
     use rand_chacha::rand_core::SeedableRng;
-    // signing
-    use k256::ecdsa::{signature::Signer, Signature, SigningKey};
-    // verifying
-    use k256::ecdsa::{signature::Verifier, VerifyingKey};
+    use p256_cortex_m4::{SecretKey};
 
     // The only time we need crypto on the device is:
     // 1. The car generates a random nonce, which the fob signs and the car verifies
@@ -34,14 +31,19 @@ fn crypto_example() {
     let mut rng = rand_chacha::ChaChaRng::from_seed([0; 32]);
 
     // keypair generation should be done on the host, but here's how to do it on the device
-    let signing_key = SigningKey::random(&mut rng); // Serialize with `::to_bytes()`
+    let signing_key = SecretKey::random(&mut rng);
     let message: &[u8] = b"Some text";
-    let signature: Signature = signing_key.sign(message);
-    // hprintln!("Signature: {:?}", signature).unwrap();
+    let signature = signing_key.sign(message, &mut rng);
 
-    let verifying_key = VerifyingKey::from(&signing_key); // Serialize with `::to_encoded_point()`
-    assert!(verifying_key.verify(message, &signature).is_ok());
+    let verifying_key = signing_key.public_key();
+    assert!(verifying_key.verify(message, &signature));
     hprintln!("Signature verified!").unwrap();
+
+    // hashing example
+    use p256_cortex_m4::sha256;
+
+    let result = sha256(&b"hello world"[..]);
+    hprintln!("Hash: {:?}", result).unwrap();
 }
 
 fn led_and_uart_example(board: &mut Board) -> ! {
