@@ -34,7 +34,7 @@ name = "car"
 name = "fob"
 
 [profile.dev]
-opt-level = "s" # small binaries so they fit on the board
+opt-level = "z" # small binaries so they fit on the board
 
 [profile.release]
 codegen-units = 1 # better optimizations

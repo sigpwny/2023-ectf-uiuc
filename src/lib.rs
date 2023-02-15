@@ -12,3 +12,15 @@ pub fn setup_board() -> Board {
     driverlib::init_system();
     board
 }
+
+/// Pass directly to hprintln if we are not in debug mode. Otherwise, do
+/// nothing.
+#[macro_export]
+macro_rules! log {
+    ($($arg:tt)*) => {
+        if cfg!(debug_assertions) {
+            use cortex_m_semihosting::hprintln;
+            hprintln!($($arg)*).unwrap();
+        }
+    }
+}

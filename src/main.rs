@@ -2,16 +2,15 @@
 #![no_main]
 
 use cortex_m_rt::entry;
-use cortex_m_semihosting::hprintln;
 use embedded_hal::digital::v2::OutputPin;
 
-use tiva::{driverlib, setup_board, Board};
+use tiva::{driverlib, setup_board, Board, log};
 
 #[entry]
 fn main() -> ! {
     let mut board: Board = setup_board();
 
-    hprintln!("Hello, world!").unwrap();
+    log!("Hello, world!");
 
     crypto_example();
 
@@ -37,22 +36,22 @@ fn crypto_example() {
 
     let verifying_key = signing_key.public_key();
     assert!(verifying_key.verify(message, &signature));
-    hprintln!("Signature verified!").unwrap();
+    log!("Signature verified!");
 
     // hashing example
     use p256_cortex_m4::sha256;
 
     let result = sha256(&b"hello world"[..]);
-    hprintln!("Hash: {:?}", result).unwrap();
+    log!("Hash: {:?}", result);
 }
 
 fn led_and_uart_example(board: &mut Board) -> ! {
     let mut toggle = true;
     loop {
         if driverlib::check_switch() {
-            hprintln!("SW1 is pressed").unwrap();
+            log!("SW1 is pressed");
         } else {
-            hprintln!("SW1 is not pressed").unwrap();
+            log!("SW1 is not pressed");
         }
         driverlib::uart_writeb_host('a' as u8);
 
