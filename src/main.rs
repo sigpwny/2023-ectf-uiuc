@@ -77,7 +77,7 @@ fn wait(length: u32) {
 
 fn eeprom() {
     // initalize our data
-    let mut wdata: [u32; 64];
+    let mut wdata: [u32; EEPROM_SIZE / 4];
     for address in 0..EEPROM_SIZE {
         wdata[address] = address;
     }
@@ -86,7 +86,7 @@ fn eeprom() {
     eeprom_write(&wdata, UNLOCK_EEPROM_LOC);
 
     // Read out data
-    let mut rdata: [u32; 64];
+    let mut rdata: [u32; EEPROM_SIZE / 4];
     eeprom_read(&rdata, UNLOCK_EEPROM_LOC);
     for address in 0..EEPROM_SIZE {
         assert!(wdata[address] == rdata[address]);
