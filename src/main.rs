@@ -17,6 +17,8 @@ fn main() -> ! {
 
     crypto_example();
 
+    eeprom_example();
+
     led_and_uart_example(&mut board)
 }
 
@@ -45,7 +47,8 @@ fn crypto_example() {
     use p256_cortex_m4::sha256;
 
     let result = sha256(&b"hello world"[..]);
-    log!("Hash: {:?}", result);
+    _ = result;
+    // log!("Hash: {:?}", result);
 }
 
 fn led_and_uart_example(board: &mut Board) -> ! {
@@ -75,24 +78,24 @@ fn wait(length: u32) {
     }
 }
 
-fn eeprom() {
+fn eeprom_example() {
+    const WRITE_LOC: u32 = 0;
+    const WRITE_SIZE: usize = 512;
     // initalize our data
-    let mut wdata: [u32; EEPROM_SIZE / 4];
-    for address in 0..EEPROM_SIZE {
-        wdata[address] = address;
+    let mut wdata: [u32; WRITE_SIZE] = [0; WRITE_SIZE];
+    for address in 0..WRITE_SIZE {
+        wdata[address] = address as u32;
     }
 
     // Write Our data
-    eeprom_write(&wdata, UNLOCK_EEPROM_LOC);
+    eeprom_write(&wdata, WRITE_LOC);
 
     // Read out data
-    let mut rdata: [u32; EEPROM_SIZE / 4];
-    eeprom_read(&rdata, UNLOCK_EEPROM_LOC);
-    for address in 0..EEPROM_SIZE {
+    let mut rdata: [u32; WRITE_SIZE] = [0; WRITE_SIZE];
+    eeprom_read(&mut rdata, WRITE_LOC);
+    for address in 0..WRITE_SIZE {
         assert!(wdata[address] == rdata[address]);
     }
 
     log!("EEPROM Tests passed");
-    // #define UNLOCK_EEPROM_LOC 0x7C0
-    // #define UNLOCK_EEPROM_SIZE 64
 }

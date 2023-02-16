@@ -43,17 +43,23 @@ pub fn uart_writeb_board(data: u8) { unsafe { driverwrapper::uart_writeb_board(d
 
 /// Read from the EEPROM. Address must be a multiple of 4.
 pub fn eeprom_read(data: &mut [u32], address: u32) {
-    assert!(address + data.len() as u32 <= EEPROM_SIZE);
+    if (data.len() == 0) {
+        return;
+    }
+    assert!(address + data.len() as u32 * 4 <= EEPROM_SIZE);
     unsafe {
-        driverwrapper::eeprom_read(data.as_mut_ptr(), address, data.len() as u32);
+        driverwrapper::eeprom_read(data.as_mut_ptr(), address, data.len() as u32 * 4);
     }
 }
 
 /// Write to the EEPROM. Address must be a multiple of 4.
 pub fn eeprom_write(data: &[u32], address: u32) {
-    assert!(address + data.len() as u32 <= EEPROM_SIZE);
+    if (data.len() == 0) {
+        return;
+    }
+    assert!(address + data.len() as u32 * 4 <= EEPROM_SIZE);
     unsafe {
-        driverwrapper::eeprom_write(data.as_ptr(), address, data.len() as u32);
+        driverwrapper::eeprom_write(data.as_ptr(), address, data.len() as u32 * 4);
     }
 }
 
