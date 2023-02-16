@@ -54,7 +54,7 @@ fn crypto_example() {
 fn led_and_uart_example(board: &mut Board) -> ! {
     let mut toggle = true;
     loop {
-        if driverlib::check_switch() {
+        if driverlib::read_sw_1() {
             log!("SW1 is pressed");
         } else {
             log!("SW1 is not pressed");

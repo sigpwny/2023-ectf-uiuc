@@ -10,7 +10,7 @@ mod driverwrapper {
         pub(super) fn uart_writeb_board(data: u8);
         pub(super) fn eeprom_read(data: *mut u32, address: u32, length: u32);
         pub(super) fn eeprom_write(data: *const u32, address: u32, length: u32);
-        pub(super) fn check_switch() -> bool;
+        pub(super) fn read_sw_1() -> bool;
     }
 }
 
@@ -24,26 +24,42 @@ pub fn init_system() {
 }
 
 /// Check if the host has sent a byte.
-pub fn uart_avail_host() -> bool { unsafe { driverwrapper::uart_avail_host() } }
+pub fn uart_avail_host() -> bool {
+    unsafe { driverwrapper::uart_avail_host() }
+}
 
 /// Check if the board has sent a byte.
-pub fn uart_avail_board() -> bool { unsafe { driverwrapper::uart_avail_board() } }
+pub fn uart_avail_board() -> bool {
+    unsafe { driverwrapper::uart_avail_board() }
+}
 
 /// Read a byte from the host.
-pub fn uart_readb_host() -> i32 { unsafe { driverwrapper::uart_readb_host() } }
+pub fn uart_readb_host() -> i32 {
+    unsafe { driverwrapper::uart_readb_host() }
+}
 
 /// Read a byte from the board.
-pub fn uart_readb_board() -> i32 { unsafe { driverwrapper::uart_readb_board() } }
+pub fn uart_readb_board() -> i32 {
+    unsafe { driverwrapper::uart_readb_board() }
+}
 
 /// Write a byte to the host.
-pub fn uart_writeb_host(data: u8) { unsafe { driverwrapper::uart_writeb_host(data); } }
+pub fn uart_writeb_host(data: u8) {
+    unsafe {
+        driverwrapper::uart_writeb_host(data);
+    }
+}
 
 /// Write a byte to the board.
-pub fn uart_writeb_board(data: u8) { unsafe { driverwrapper::uart_writeb_board(data); } }
+pub fn uart_writeb_board(data: u8) {
+    unsafe {
+        driverwrapper::uart_writeb_board(data);
+    }
+}
 
 /// Read from the EEPROM. Address must be a multiple of 4.
 pub fn eeprom_read(data: &mut [u32], address: u32) {
-    if (data.len() == 0) {
+    if data.len() == 0 {
         return;
     }
     assert!(address + data.len() as u32 * 4 <= EEPROM_SIZE);
@@ -54,7 +70,7 @@ pub fn eeprom_read(data: &mut [u32], address: u32) {
 
 /// Write to the EEPROM. Address must be a multiple of 4.
 pub fn eeprom_write(data: &[u32], address: u32) {
-    if (data.len() == 0) {
+    if data.len() == 0 {
         return;
     }
     assert!(address + data.len() as u32 * 4 <= EEPROM_SIZE);
@@ -63,5 +79,7 @@ pub fn eeprom_write(data: &[u32], address: u32) {
     }
 }
 
-/// Check if the switch is pressed. Debounces if necessary.
-pub fn check_switch() -> bool { unsafe { driverwrapper::check_switch() } }
+/// Check if switch 1 is pressed. Returns true if pressed.
+pub fn read_sw_1() -> bool {
+    unsafe { driverwrapper::read_sw_1() }
+}

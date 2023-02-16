@@ -96,27 +96,6 @@ void uart_writeb_board(uint8_t data) { UARTCharPut(BOARD_UART, data); }
 void eeprom_read(uint32_t *data, uint32_t address, uint32_t count) { EEPROMRead(data, address, count); }
 void eeprom_write(uint32_t *data, uint32_t address, uint32_t count) { EEPROMProgram(data, address, count); }
 
-/*
- * Checks if the user pressed SW1 to unlock the car. Specific to eCTF 2023. This
- * may wait to debounce the switch if the switch is not pressed, exactly like the
- * eCTF 2023 insecure example. Returns true if the switch is pressed, false
- * otherwise.
- *
- * See: https://github.com/mitre-cyber-academy/2023-ectf-insecure-example/blob/074ecc2f77cbeaf0d69962ba165206fbecf8f2d9/fob/src/firmware.c#L203-L219
- */
-bool check_switch(void) {
-  static uint8_t sw_state = 0;
-  uint8_t current_sw_state = GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4);
-  if ((current_sw_state != sw_state) && (current_sw_state == 0)) {
-    // Debounce the switch
-    for (int i = 0; i < 10000; i++) {
-      __asm__ ("");
-    }
-    if (GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4) == current_sw_state) {
-      sw_state = 0;
-      return true;
-    }
-  }
-  sw_state = current_sw_state;
-  return false;
+bool read_sw_1(void) {
+  return GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4) == 0;
 }
