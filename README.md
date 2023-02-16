@@ -85,7 +85,7 @@ Info : Listening on port 3333 for gdb connections
 ```
 Then, in **a different terminal**,
 ```
-$ cargo run
+$ cargo run --bin sigpwny-ectf-2023
 ...
 Reading symbols from target/thumbv7em-none-eabihf/debug/car...
 0x00000390 in core::fmt::Arguments::new_v1 ()
