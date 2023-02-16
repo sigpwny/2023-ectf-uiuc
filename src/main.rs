@@ -4,7 +4,10 @@
 use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
 
-use tiva::{driverlib, setup_board, Board, log};
+use tiva::{
+    driverlib::{self, eeprom_read, eeprom_write},
+    log, setup_board, Board,
+};
 
 #[entry]
 fn main() -> ! {
@@ -19,8 +22,8 @@ fn main() -> ! {
 
 fn crypto_example() {
     // key generation
+    use p256_cortex_m4::SecretKey;
     use rand_chacha::rand_core::SeedableRng;
-    use p256_cortex_m4::{SecretKey};
 
     // The only time we need crypto on the device is:
     // 1. The car generates a random nonce, which the fob signs and the car verifies
@@ -70,4 +73,26 @@ fn wait(length: u32) {
     for _ in 0..length {
         cortex_m::asm::nop();
     }
+}
+
+fn eeprom() {
+    // initalize our data
+    let mut wdata: [u32; 64];
+    for address in 0..EEPROM_SIZE {
+        wdata[address] = address;
+    }
+
+    // Write Our data
+    eeprom_write(&wdata, UNLOCK_EEPROM_LOC);
+
+    // Read out data
+    let mut rdata: [u32; 64];
+    eeprom_read(&rdata, UNLOCK_EEPROM_LOC);
+    for address in 0..EEPROM_SIZE {
+        assert!(wdata[address] == rdata[address]);
+    }
+
+    log!("EEPROM Tests passed");
+    // #define UNLOCK_EEPROM_LOC 0x7C0
+    // #define UNLOCK_EEPROM_SIZE 64
 }
