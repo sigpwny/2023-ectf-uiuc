@@ -36,9 +36,8 @@ pub enum Button {
 use embedded_hal::digital::v2::OutputPin;
 use tm4c123x_hal::gpio::{gpiof::*, GpioExt, Input, Output, PullUp, PushPull};
 use tm4c123x_hal::sysctl::{
-    Clocks, CrystalFrequency, Oscillator, PllOutputFrequency, SysctlExt, SystemClock,
+    CrystalFrequency, Oscillator, PllOutputFrequency, SysctlExt, SystemClock,
 };
-use tm4c123x_hal::time::Hertz;
 
 /// Represents the EK-LM4F120XL LaunchPad board, with the locations of the LEDs and buttons
 /// predefined.
@@ -178,24 +177,13 @@ pub struct Board {
     pub UDMA: tm4c123x_hal::tm4c123x::UDMA,
 }
 
-// a moderately sane default, but will be replaced by Board::new()
-static mut CLOCKS: Clocks = Clocks {
-    osc: Hertz(16_000_000),
-    sysclk: Hertz(66_666_667),
-};
-
-/// Get the current clock rate of the CPU
-pub fn clocks() -> &'static Clocks {
-    unsafe { &CLOCKS }
-}
-
 impl Board {
     /// Initialise everything on the board - FPU, PLL, SysTick, GPIO and the LEDs
     /// and buttons. Should be pretty much the first call you make in `main()`.
     /// Doesn't init the UART - that's separate.
     pub(crate) fn new() -> Board {
-        let core_peripherals = tm4c123x_hal::CorePeripherals::take().unwrap();
-        let peripherals = tm4c123x_hal::Peripherals::take().unwrap();
+        let core_peripherals = unsafe { tm4c123x_hal::CorePeripherals::steal() };
+        let peripherals = unsafe { tm4c123x_hal::Peripherals::steal() };
         let mut sysctl = peripherals.SYSCTL.constrain();
 
         // this might belong in tm4c123x_hal, but allow FPU usage
@@ -210,9 +198,6 @@ impl Board {
             CrystalFrequency::_16mhz,
             SystemClock::UsePll(PllOutputFrequency::_66_67mhz),
         );
-        unsafe {
-            CLOCKS = sysctl.clock_setup.freeze();
-        }
         let mut pins = peripherals.GPIO_PORTF.split(&sysctl.power_control);
         let led_red = pins.pf1.into_push_pull_output();
         let led_blue = pins.pf2.into_push_pull_output();
@@ -297,17 +282,18 @@ impl Board {
 
 /// Call from a panic handler to flash the red LED quickly.
 pub fn panic() -> ! {
-    use embedded_hal::blocking::delay::DelayMs;
-    let core_peripherals = unsafe { tm4c123x_hal::CorePeripherals::steal() };
     let p = unsafe { tm4c123x_hal::Peripherals::steal() };
     let pins = p.GPIO_PORTF.split(&p.SYSCTL.constrain().power_control);
 
-    let mut delay = tm4c123x_hal::delay::Delay::new(core_peripherals.SYST, unsafe { &CLOCKS });
     let mut led_red = pins.pf1.into_push_pull_output();
     loop {
         let _ = led_red.set_high();
-        delay.delay_ms(200u32);
+        for _ in 0..1_000_000 {
+            cortex_m::asm::nop();
+        }
         let _ = led_red.set_low();
-        delay.delay_ms(200u32);
+        for _ in 0..1_000_000 {
+            cortex_m::asm::nop();
+        }
     }
 }
