@@ -34,13 +34,16 @@ pub fn uart_avail_board() -> bool {
 }
 
 /// Read a byte from the host.
-pub fn uart_readb_host() -> i32 {
-    unsafe { driverwrapper::uart_readb_host() }
+pub fn uart_readb_host() -> u8 {
+    // return as u8
+    let ret: i32 = unsafe { driverwrapper::uart_readb_host() };
+    ret as u8
 }
 
 /// Read a byte from the board.
-pub fn uart_readb_board() -> i32 {
-    unsafe { driverwrapper::uart_readb_board() }
+pub fn uart_readb_board() -> u8 {
+    let ret: i32 = unsafe { driverwrapper::uart_readb_board() };
+    ret as u8
 }
 
 /// Write a byte to the host.
