@@ -82,6 +82,12 @@ fn main() -> ! {
 
 fn paired_fob_pairing() -> ! {
     // we just received a PAIR_REQ
+    // 1. read pin from uart
+    // 2. send pair_syn and pin to unpaired fob
+    // 3. compute hash of pin w/ salt
+    // 4. wait 900ms
+    // 5. check pair_ack
+    // 6. do flowchart
 }
 
 fn unpaired_fob_pairing() -> ! {
