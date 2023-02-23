@@ -49,14 +49,15 @@ sequenceDiagram
     participant Car
     participant Fob
     Fob->>Car: Unlock request
-    alt No_Unsigned_Nonce
-        Car ->> Host Computer: "Unlock failed: No return of unsigned nonce."
-    end
+    Car->>Host Computer: Unlock started
     Car->>Fob: Unsigned nonce
     alt No_Signed_Nonce
         Car ->> Host Computer: "Unlock failed: No return of signed nonce."
     end
-        Fob->>Car: Signed nonce
+    Fob->>Car: Signed nonce
+    alt Invalid_Signed_Nonce
+        Car->>Host Computer: Signed nonce invalid
+    end
         Car->>Host Computer: Unlock succeeded
     Note right of Car: Car unlocked
 ```
