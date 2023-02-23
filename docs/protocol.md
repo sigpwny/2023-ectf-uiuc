@@ -43,3 +43,20 @@ sequenceDiagram
 ## Enabling Features
 
 ## Unlocking Car
+```mermaid
+sequenceDiagram
+    participant Host Computer
+    participant Car
+    participant Fob
+    Fob->>Car: Unlock request
+    alt No_Unsigned_Nonce
+        Car ->> Host Computer: "Unlock failed: No return of unsigned nonce."
+    end
+    Car->>Fob: Unsigned nonce
+    alt No_Signed_Nonce
+        Car ->> Host Computer: "Unlock failed: No return of signed nonce."
+    end
+        Fob->>Car: Signed nonce
+        Car->>Host Computer: Unlock succeeded
+    Note right of Car: Car unlocked
+```
