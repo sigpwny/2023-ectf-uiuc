@@ -58,24 +58,32 @@ fn main() -> ! {
         match (data) {
             MAGIC_PAIR_REQ => {
                 if (FOB_IS_PAIRED) {
-                    // ...
+                    paired_fob_pairing();
                 }
             }
             MAGIC_PAIR_SYN => {
-                // ...
-            }
-            MAGIC_PAIR_ACK => {
-                // ...
-            }
-            MAGIC_PAIR_FIN => {
-                // ...
+                if (!FOB_IS_PAIRED) {
+                    unpaired_fob_pairing();
+                }
             }
             _ => {
                 // probably timeout? or continue listening
             }
         }
-
-        // log!("{} {}", data, data as char); // This takes a long time
     }
     // loop{}
+}
+
+
+// Use driverlib::uart_readb_host() to read a byte from the host UART
+// Use driverlib::uart_writeb_host(data); to write a byte to the host UART
+// Use driverlib::uart_readb_board() to read a byte from the board UART
+// Use driverlib::uart_writeb_board(data); to write a byte to the board UART
+
+fn paired_fob_pairing() -> ! {
+    // we just received a PAIR_REQ
+}
+
+fn unpaired_fob_pairing() -> ! {
+    // we just received a PAIR_SYN, so now we need to read the PIN
 }
