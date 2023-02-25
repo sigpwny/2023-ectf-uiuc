@@ -6,17 +6,23 @@ use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
-    driverlib::{self/*, eeprom_read, eeprom_write*/},
+    driverlib::{self, uart_read_host, uart_write_board /*, eeprom_read, eeprom_write*/},
     log, setup_board, Board,
 };
 
 // define magic bytes for protocol
-const MAGIC_PAIR_REQ: u8 = 0x40; const LEN_PAIR_REQ: u8 = 4;
-const OFFSET_PAIR_REQ__PIN: u8 = 1; const LEN_PAIR_REQ__PIN: u8 = 3;
-const MAGIC_PAIR_SYN: u8 = 0x41; const LEN_PAIR_SYN: u8 = 4;
-const OFFSET_PAIR_SYN__PIN: u8 = 1; const LEN_PAIR_SYN__PIN: u8 = 3;
-const MAGIC_PAIR_ACK: u8 = 0x42; const LEN_PAIR_ACK: u8 = 1;
-const MAGIC_PAIR_FIN: u8 = 0x43; const LEN_PAIR_FIN: u8 = 1; // this length should eventually include the transferred secret
+const MAGIC_PAIR_REQ: u8 = 0x40;
+const LEN_PAIR_REQ: u8 = 4;
+const OFFSET_PAIR_REQ__PIN: usize = 1;
+const LEN_PAIR_REQ__PIN: usize = 3;
+const MAGIC_PAIR_SYN: u8 = 0x41;
+const LEN_PAIR_SYN: u8 = 4;
+const OFFSET_PAIR_SYN__PIN: u8 = 1;
+const LEN_PAIR_SYN__PIN: u8 = 3;
+const MAGIC_PAIR_ACK: u8 = 0x42;
+const LEN_PAIR_ACK: u8 = 1;
+const MAGIC_PAIR_FIN: u8 = 0x43;
+const LEN_PAIR_FIN: u8 = 1; // this length should eventually include the transferred secret
 
 // FOR TESTING ONLY
 const LEN_CAR_SECRET: u8 = 32; // 32 bytes
@@ -74,22 +80,34 @@ fn main() -> ! {
     // loop{}
 }
 
-
 // Use driverlib::uart_readb_host() to read a byte from the host UART
 // Use driverlib::uart_writeb_host(data); to write a byte to the host UART
 // Use driverlib::uart_readb_board() to read a byte from the board UART
 // Use driverlib::uart_writeb_board(data); to write a byte to the board UART
 
-fn paired_fob_pairing() -> ! {
+fn paired_fob_pairing() {
     // we just received a PAIR_REQ
     // 1. read pin from uart
+    let mut pin: [u8; LEN_PAIR_REQ__PIN] = [0; LEN_PAIR_REQ__PIN];
+    uart_read_host(&mut pin); // may need to read newline char
+
     // 2. send pair_syn and pin to unpaired fob
+    let mut pair_syn_msg: [u8; LEN_PAIR_REQ__PIN + 1] = [MAGIC_PAIR_SYN; LEN_PAIR_REQ__PIN + 1];
+    pair_syn_msg[..1].copy_from_slice(&pin);
+    uart_write_board(&pair_syn_msg);
+
     // 3. compute hash of pin w/ salt
+    //3.1 Create Buffer
+
+    //3.2 Read Salt
+    //3.3 Compute Hash
+    // let hashed_pin_salt = sha256(&b"hello world"[..]);
+
     // 4. wait 900ms
     // 5. check pair_ack
     // 6. do flowchart
 }
 
-fn unpaired_fob_pairing() -> ! {
+fn unpaired_fob_pairing() {
     // we just received a PAIR_SYN, so now we need to read the PIN
 }
