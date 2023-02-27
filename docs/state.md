@@ -13,6 +13,7 @@
   - `MAN_PUBLIC` - 256 bits (32 bytes), P-256 public key
 
 Data:
+- `CAR_ID` - 8 bits (1 byte)
 - `FEAT_1` - 8 bits (1 byte)
 - `FEAT_1_SIG` - 512 bits (64 bytes), P-256 signature from factory
 - `FEAT_2` - 8 bits (1 byte)
