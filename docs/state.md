@@ -51,7 +51,7 @@ Pairing-specific state:
      │                     │   │
      │                     │   │
      │                     │   │
-0x700├─────────────────────┼───┤
+0x700├─────────────────────┼───┤ <-- End of allowed PARED EEPROM
      │Feature 3 Message    │R  │
 0x740├─────────────────────┼───┤
      │Feature 2 Message    │R  │
