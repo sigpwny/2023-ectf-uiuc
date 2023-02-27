@@ -13,12 +13,12 @@
   - `MAN_PUBLIC` - 256 bits (32 bytes), P-256 public key
 
 Data:
-- `CAR_ID` - 8 bits (1 byte)
-- `FEAT_1` - 8 bits (1 byte)
+- `CAR_ID` - 8 bits (1 byte), stored as 32 bits (4 bytes)
+- `FEAT_1` - 8 bits (1 byte), stored as 32 bits (4 bytes)
 - `FEAT_1_SIG` - 512 bits (64 bytes), P-256 signature from factory
-- `FEAT_2` - 8 bits (1 byte)
+- `FEAT_2` - 8 bits (1 byte), stored as 32 bits (4 bytes)
 - `FEAT_2_SIG` - 512 bits (64 bytes), P-256 signature from factory
-- `FEAT_3` - 8 bits (1 byte)
+- `FEAT_3` - 8 bits (1 byte), stored as 32 bits (4 bytes)
 - `FEAT_3_SIG` - 512 bits (64 bytes), P-256 signature from factory
 
 Pairing-specific state:
@@ -50,13 +50,13 @@ Fob EEPROM
      │                     │-  │
 0x200├─────────────────────┼───┤
      │FOB_IS_PAIRED        │RW │
-0x201├─────────────────────┼───┤
-     │FEAT_1               │RW │
-0x202├─────────────────────┼───┤
-     │FEAT_2               │RW │
-0x203├─────────────────────┼───┤
-     │FEAT_3               │RW │
 0x204├─────────────────────┼───┤
+     │FEAT_1               │RW │
+0x208├─────────────────────┼───┤
+     │FEAT_2               │RW │
+0x20C├─────────────────────┼───┤
+     │FEAT_3               │RW │
+0x210├─────────────────────┼───┤
      │                     │-  │
 0x240├─────────────────────┼───┤
      │FEAT_1_SIG           │RW │
