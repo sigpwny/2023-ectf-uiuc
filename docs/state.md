@@ -2,6 +2,8 @@
 
 ## Secrets and Variables
 
+All are unsigned unless otherwise specified
+
 - Fob keypair
   - `FOB_SECRET` - 256 bits (32 bytes), P-256 private key
   - `FOB_PUBLIC` - 256 bits (32 bytes), P-256 public key
@@ -27,7 +29,7 @@ Pairing-specific state:
   - Combined with unhashed, big-endian PIN (3 bytes and 1 byte padding): `FOB_SALT + (0x00 + PIN) => 16 bytes`
   - Used as a salt to validate password against stored hash and also used to decrypt `FOB_SECRET_ENC`
 - `PIN_HASH` - ???
-- `FOB_IS_PAIRED` - 1 byte
+- `FOB_IS_PAIRED` - 32 bits (4 bytes)
 
 ## EEPOM State
 
