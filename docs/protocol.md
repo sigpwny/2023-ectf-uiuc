@@ -169,11 +169,13 @@ sequenceDiagram
   Car ->> Host Computer: "Unlock requested"
   Car ->> Fob: UNLOCK_CHAL
   Car -->> Fob: Nonce
+  Car -->> Fob: Nonce signature
   alt No challenge response
     Car ->> Host Computer: "Unlock failed: No challenge response"
   end
   Fob ->> Car: UNLOCK_RESP
   Fob -->> Car: Nonce + 1
+  Fob -->> Car: Nonce + 1 signature
   Note over Host Computer, Fob: Minimum 0.5s TTT elapsed
   alt Invalid challenge response
     Car ->> Host Computer: "Unlock failed: Invalid challenge response"
@@ -194,17 +196,22 @@ Sent by the fob to the car when SW1 is pressed, requesting an unlock.
 
 ### UNLOCK_CHAL
 Sends a challenge from the car to the fob in order to authenticate. The 
-challenge is encrypted with the fob's public key and contains a generated 
-nonce value (64 bit integer). In order to complete the challenge, the fob must 
-add 1 to the nonce and send the result in an `UNLOCK_RESP` to the car.
+challenge contains a generated nonce value (64 bit integer), along with a 
+signature of the nonce using  the car's secret key. In order to complete the 
+challenge, the fob must add 1 to the nonce and send the result in an 
+`UNLOCK_RESP` to the car.
 
 ### UNLOCK_RESP
 Send by the fob to the car. The nonce value from `UNLOCK_CHAL` is incremented 
-and encrypted with the car's public key.
+and sent, along with a signature of the modified nonce using the fob's secret
+key. The fob should only send a response after validating the signature 
+included in `UNLOCK_CHAL`.
+
 
 ### UNLOCK_GOOD
-If the challenge was solved, then the car should now be unlocked. This message 
-is sent from the car asking the fob for its stored features.
+If the challenge was solved (and the signature from `UNLOCK_RESP` is valid), 
+then the car should now be unlocked. This message is sent from the car asking 
+the fob for its stored features.
 
 ### UNLOCK_FEAT
 This is sent from the fob to the car and contains the feature numbers as well 
