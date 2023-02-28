@@ -21,13 +21,15 @@ sequenceDiagram
   participant Host Computer
   participant Paired Fob
   participant Unpaired Fob
-  Host Computer ->> Paired Fob: PAIR_REQ <br/>PIN: 0x123456
+  Host Computer ->> Paired Fob: PAIR_REQ
+  Host Computer -->> Paired Fob: PIN attempt
   Note over Paired Fob: PIN is validated, <br/>result is stored
-  Paired Fob ->> Unpaired Fob: PAIR_SYN <br/>PIN: 0x123456
+  Paired Fob ->> Unpaired Fob: PAIR_SYN
+  Paired Fob -->> Unpaired Fob: PIN attempt
   alt No PAIR_ACK
     Paired Fob -x Host Computer: "Paired fob: Could not find unpaired fob"
   end
-  Unpaired Fob -->> Paired Fob: PAIR_ACK
+  Unpaired Fob ->> Paired Fob: PAIR_ACK
   Note over Host Computer, Unpaired Fob: Minimum 0.5s TTT elapsed
   alt PIN incorrect
     Paired Fob -x Host Computer: "Paired fob: PIN is incorrect"
@@ -35,7 +37,10 @@ sequenceDiagram
     Note over Paired Fob: UART blocked until 5s TTT
   end
   Paired Fob ->> Host Computer: "Paired fob: PIN is correct"
-  Paired Fob ->> Unpaired Fob: PAIR_FIN <br/>(Send secrets/features)
+  Paired Fob ->> Unpaired Fob: PAIR_FIN
+  Paired Fob -->> Unpaired Fob: FOB_SECRET_ENC (decrypted)
+  Paired Fob -->> Unpaired Fob: CAR_ID, Feature numbers
+  Paired Fob -->> Unpaired Fob: Feature signatures, CAR_PUBLIC
   alt PAIR_FIN takes too long
     Unpaired Fob -x Host Computer: "Unpaired fob: Fob data did not transfer in time"
     Note over Unpaired Fob: UART blocked until 5s TTT
@@ -106,6 +111,10 @@ this is completed.
 
 *TODO: Update with correct secret and feature lengths*
 
+> **Warning**  
+> More information needs to be transferred from EEPROM. Refer to diagram and 
+> state documentation.
+
 |             | Magic     | Car Secret            | Feature 1   | Feature 2   | Feature 3   |
 | ----------- | --------- | --------------------- | ----------- | ----------- | ----------- |
 | **Bytes**   | `\x43`    |  \<xxx bytes\>        | \<yy> bytes | \<yy> bytes | \<yy> bytes |
@@ -128,7 +137,26 @@ guaranteed to be listening for a reset.
 
 ## Enabling Features
 
-*TODO*
+```mermaid
+sequenceDiagram
+  participant Host Computer
+  participant Paired Fob
+  Host Computer ->> Paired Fob: ENAB_FEAT
+  Host Computer -->> Paired Fob: Feature index (1, 2, 3)
+  Host Computer -->> Paired Fob: Feature number
+  Host Computer -->> Paired Fob: Feature signature
+```
+
+### ENAB_FEAT
+Sent from the host computer to a paired fob. Only paired fobs will act on 
+this message. The fob will not make any attempt to validate the feature, 
+except that a valid feature index is provided (1, 2, or 3).
+
+|             | Magic     | Feature index        | Feature number | Feature signature |
+| ----------- | --------- | -------------------- | -------------- | ----------------- |
+| **Bytes**   | `\x50`    | `\x01`,`\x02`,`\x03` | `\x??`         |                   |
+| **Offsets** | 0x0 - 0x1 | 0x1 - 0x2            | 0x2 - 0x3      | 0x2 - 0x??        |
+| **Notes**   |           |                      |                |                   |
 
 ## Unlocking Car
 
@@ -137,23 +165,52 @@ sequenceDiagram
   participant Host Computer
   participant Car
   participant Fob
-  Host Computer ->> Car: Start unlock (host)
-  Fob ->> Car: Unlock request (SW1)
+  Fob ->> Car: UNLOCK_REQ
   Car ->> Host Computer: "Unlock requested"
-  Car ->> Fob: Unsigned nonce
-  alt No signed nonce
-    Car ->> Host Computer: "Unlock failed: No signed nonce returned"
+  Car ->> Fob: UNLOCK_CHAL
+  Car -->> Fob: Nonce
+  alt No challenge response
+    Car ->> Host Computer: "Unlock failed: No challenge response"
   end
-  Fob->>Car: Signed nonce
+  Fob ->> Car: UNLOCK_RESP
+  Fob -->> Car: Nonce + 1
   Note over Host Computer, Fob: Minimum 0.5s TTT elapsed
-  alt Invalid signed nonce
-    Car->>Host Computer: "Unlock failed: Invalid signed nonce"
+  alt Invalid challenge response
+    Car ->> Host Computer: "Unlock failed: Invalid challenge response"
     Note over Car: UART blocked for 5s TTT
   end
-  Car->>Host Computer: "Unlock successful!" <br/>Print car message in EEPROM
-  Note right of Car: Car unlocked
-  Note over Host Computer, Fob: TODO: Transfer and print features
+  Car ->> Host Computer: "Unlock successful!" <br/>Print car message in EEPROM
+  Note over Host Computer, Fob: Car unlocked
+  Car ->> Fob: UNLOCK_GOOD
+  Fob ->> Car: UNLOCK_FEAT
+  Fob -->> Car: Feature numbers
+  Fob -->> Car: Feature signatures
+  Car ->> Host Computer: Valid features list and <br/>feature messages in EEPROM
   Note over Host Computer: <1s TTT on success
 ```
 
-*TODO*
+### UNLOCK_REQ
+Sent by the fob to the car when SW1 is pressed, requesting an unlock.
+
+### UNLOCK_CHAL
+Sends a challenge from the car to the fob in order to authenticate. The 
+challenge is encrypted with the fob's public key and contains a generated 
+nonce value (64 bit integer). In order to complete the challenge, the fob must 
+add 1 to the nonce and send the result in an `UNLOCK_RESP` to the car.
+
+### UNLOCK_RESP
+Send by the fob to the car. The nonce value from `UNLOCK_CHAL` is incremented 
+and encrypted with the car's public key.
+
+### UNLOCK_GOOD
+If the challenge was solved, then the car should now be unlocked. This message 
+is sent from the car asking the fob for its stored features.
+
+### UNLOCK_FEAT
+This is sent from the fob to the car and contains the feature numbers as well 
+as their respective signatures. The car will validate the provided features 
+using the signatures.
+
+> **Warning**  
+> Car MUST include feature number and car ID combined/concatenated to validate 
+> signature.
