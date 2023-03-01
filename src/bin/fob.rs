@@ -94,12 +94,10 @@ const MSGLEN_PAIR_FIN:        usize = LEN_FOB_SECRET_ENC +
                                       LEN_CAR_PUBLIC;
                                       // features sent in index order (1, 2, 3)
 
-// FOR TESTING ONLY
-const FOB_IS_PAIRED: bool = true;
-
 #[entry]
 fn main() -> ! {
   let mut board: Board = setup_board();
+  let mut is_paired: bool = true;
 
   // log!("This is fob!");
 
@@ -131,7 +129,7 @@ fn main() -> ! {
       let data: u8 = driverlib::uart_readb_host();
       match data {
         MAGIC_PAIR_REQ => {
-          if FOB_IS_PAIRED {
+          if is_paired {
             log!("Paired fob: Received PAIR_REQ");
             board.led_blue.set_high().unwrap();
             paired_fob_pairing();
@@ -139,10 +137,11 @@ fn main() -> ! {
           }
         }
         MAGIC_PAIR_SYN => {
-          if !FOB_IS_PAIRED {
+          if !is_paired {
             log!("Unpaired fob: Received PAIR_SYN");
             board.led_blue.set_high().unwrap();
             unpaired_fob_pairing();
+            is_paired = true;
             board.led_blue.set_low().unwrap();
           }
         }
@@ -174,9 +173,9 @@ fn paired_fob_pairing() {
   eeprom_read(&mut salt, FOBMEM_FOB_SALT);
   let mut salt_bytes: [u8; LEN_FOB_SALT] = [0; LEN_FOB_SALT];
   words_to_bytes(&salt, &mut salt_bytes);
-  let mut salted_pin :[u8; LEN_FOB_SALT + LEN_PIN_ATTEMPT] = [0; LEN_FOB_SALT+ LEN_PIN_ATTEMPT ];
-  salted_pin.copy_from_slice(&salt_bytes);
-  salted_pin[LEN_FOB_SALT..].copy_from_slice(&pin);
+  let mut salted_pin :[u8; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT] = [0; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT ];
+  salted_pin[..LEN_FOB_SALT].copy_from_slice(&salt_bytes); // TODO: PANIC: PanicInfo { payload: Any { .. }, message: Some(source slice length (12) does not match destination slice length (15)), location: Location { file: "src\\bin\\fob.rs", line: 177, col: 14 }, can_unwind: true }
+  salted_pin[LEN_FOB_SALT + 1..].copy_from_slice(&pin);
   let computed_pin_hash_b = p256_cortex_m4::sha256(&salted_pin[..]);
   let mut computed_pin_hash_w: [u32; 8] = [0;8];
   bytes_to_words(&computed_pin_hash_b,&mut computed_pin_hash_w);
