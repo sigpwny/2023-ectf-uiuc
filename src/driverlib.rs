@@ -40,6 +40,13 @@ pub fn uart_readb_host() -> u8 {
     ret as u8
 }
 
+// Read bytes from the host into an array. Only reads data.len() bytes
+pub fn uart_read_host(data: &mut [u8]) {
+    for byte in data {
+        *byte = uart_readb_host();
+    }
+}
+
 /// Read a byte from the board.
 pub fn uart_readb_board() -> u8 {
     let ret: i32 = unsafe { driverwrapper::uart_readb_board() };
@@ -60,6 +67,11 @@ pub fn uart_writeb_board(data: u8) {
     }
 }
 
+pub fn uart_write_board(data: &[u8]) {
+    for byte in data {
+        uart_writeb_board(*byte);
+    }
+}
 /// Read from the EEPROM. Address must be a multiple of 4.
 pub fn eeprom_read(data: &mut [u32], address: u32) {
     if data.len() == 0 {
