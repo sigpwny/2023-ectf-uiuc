@@ -53,10 +53,24 @@ pub fn uart_readb_board() -> u8 {
     ret as u8
 }
 
+// Read bytes from the board 
+pub fn uart_read_board(data: &mut [u8]){
+    for byte in data {
+        *byte = uart_readb_board();
+    }
+}
+
 /// Write a byte to the host.
 pub fn uart_writeb_host(data: u8) {
     unsafe {
         driverwrapper::uart_writeb_host(data);
+    }
+}
+
+// Write bytes to the host
+pub fn uart_write_host(data: & [u8]){
+    for byte in data{
+        uart_writeb_host(*byte);
     }
 }
 
@@ -66,7 +80,7 @@ pub fn uart_writeb_board(data: u8) {
         driverwrapper::uart_writeb_board(data);
     }
 }
-
+// Write bytes to the board
 pub fn uart_write_board(data: &[u8]) {
     for byte in data {
         uart_writeb_board(*byte);
