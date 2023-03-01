@@ -112,3 +112,10 @@ pub fn eeprom_write(data: &[u32], address: u32) {
 pub fn read_sw_1() -> bool {
     unsafe { driverwrapper::read_sw_1() }
 }
+
+/// Waits for one NOP cycle (could take multiple cycles on the board)
+pub fn wait(length: u32) {
+    for _ in 0..length {
+        cortex_m::asm::nop();
+    }
+}

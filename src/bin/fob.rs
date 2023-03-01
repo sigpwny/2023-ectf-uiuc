@@ -1,13 +1,12 @@
 #![no_std]
 #![no_main]
 
-// use panic_halt as _;
 use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
-    driverlib::{self, uart_read_host, uart_write_board, uart_writeb_board, uart_readb_board, eeprom_read, eeprom_write, uart_read_board, wait},
-    log, setup_board, Board,
+    driverlib::{self, uart_read_host, uart_avail_board, uart_write_board, uart_writeb_board, uart_readb_board, eeprom_read, eeprom_write, uart_read_board, wait},
+    log, setup_board, Board, words_to_bytes, bytes_to_words
 };
 
 /**
@@ -43,8 +42,8 @@ const LEN_CAR_SECRET:         usize = 32;
 const LEN_CAR_PUBLIC:         usize = 64;
 const LEN_MAN_SECRET:         usize = 32;
 const LEN_MAN_PUBLIC:         usize = 64;
-const LEN_CAR_ID:             usize = 1; // stored as 4 bytes in EEPROM
-const LEN_FEAT:               usize = 1; // stored as 4 bytes in EEPROM
+const LEN_CAR_ID:             usize = 4; // 1 byte at heart
+const LEN_FEAT:               usize = 4; // 1 byte at heart
 const LEN_FEAT_SIG:           usize = 64;
 
 // in words (for accesing EEPROM)
@@ -54,8 +53,8 @@ const LENW_CAR_SECRET:        usize = LEN_CAR_SECRET / 4;
 const LENW_CAR_PUBLIC:        usize = LEN_CAR_PUBLIC / 4;
 const LENW_MAN_SECRET:        usize = LEN_MAN_SECRET / 4;
 const LENW_MAN_PUBLIC:        usize = LEN_MAN_PUBLIC / 4;
-const LENW_CAR_ID:            usize = 1;
-const LENW_FEAT:              usize = 1;
+const LENW_CAR_ID:            usize = LEN_CAR_ID / 4;
+const LENW_FEAT:              usize = LEN_FEAT / 4;
 const LENW_FEAT_SIG:          usize = LEN_FEAT_SIG / 4;
 
 // Pairing specific state
@@ -91,8 +90,9 @@ const MSGLEN_PAIR_SYN:        usize = LEN_PIN_ATTEMPT;
 const MSGLEN_PAIR_FIN:        usize = LEN_FOB_SECRET_ENC + 
                                       LEN_CAR_ID + 
                                       (LEN_FEAT * 3) + 
-                                      (LEN_FEAT_SIG * 3) +
+                                      (LEN_FEAT_SIG * 3) + 
                                       LEN_CAR_PUBLIC;
+                                      // features sent in index order (1, 2, 3)
 
 // FOR TESTING ONLY
 const FOB_IS_PAIRED: bool = true;
@@ -102,8 +102,6 @@ fn main() -> ! {
   let mut board: Board = setup_board();
 
   // log!("This is fob!");
-
-  board.led_blue.set_high().unwrap(); // Turn on blue LED
 
   // Write "supersecret!" to EEPROM
   // Store "supersecret!" as a u32 array
@@ -124,26 +122,34 @@ fn main() -> ! {
   //     driverlib::uart_writeb_host(string[i]);
   // }
 
-  let timer: u64 = 0;
+  let mut timer: u64 = 0;
 
   // Read from host UART, log output, and write back to host UART
   loop {
     timer += 1;
     if driverlib::uart_avail_host() {
       let data: u8 = driverlib::uart_readb_host();
-      match (data) {
+      match data {
         MAGIC_PAIR_REQ => {
-          if (FOB_IS_PAIRED) {
+          if FOB_IS_PAIRED {
+            log!("Paired fob: Received PAIR_REQ");
+            board.led_blue.set_high().unwrap();
             paired_fob_pairing();
+            board.led_blue.set_low().unwrap();
           }
         }
         MAGIC_PAIR_SYN => {
-          if (!FOB_IS_PAIRED) {
+          if !FOB_IS_PAIRED {
+            log!("Unpaired fob: Received PAIR_SYN");
+            board.led_blue.set_high().unwrap();
             unpaired_fob_pairing();
+            board.led_blue.set_low().unwrap();
           }
         }
-        // ... add other magic bytes here
-        _ => {}
+        // Add other magic bytes here
+        _ => {
+          log!("Received invalid magic byte: {:x?}", data);
+        }
       }
     }
   }
@@ -151,69 +157,142 @@ fn main() -> ! {
 }
 
 fn paired_fob_pairing() {
-  // we just received a PAIR_REQ
+  // We just received a PAIR_REQ
   // 1. Read PIN attempt from UART
   let mut pin: [u8; LEN_PIN_ATTEMPT] = [0; LEN_PIN_ATTEMPT];
   uart_read_host(&mut pin); // may need to read newline char
+  log!("Paired fob: PAIR_REQ PIN value: {:x?}", pin);
 
   // 2. Send PAIR_SYN and PIN attempt to unpaired fob
   let mut pair_syn_msg: [u8; 1 + LEN_PIN_ATTEMPT] = [MAGIC_PAIR_SYN; 1 + LEN_PIN_ATTEMPT]; // PAIR_SYN + pin command
   pair_syn_msg[1..].copy_from_slice(&pin); // copy starting at index 1, leaving space of 
   uart_write_board(&pair_syn_msg);
+  log!("Paired fob: Sent PAIR_SYN to unpaired fob");
 
-  // 3. compute hash of salt + pin
+  // 3. Compute hash of FOB_SALT + PIN
   let mut salt: [u32; LENW_FOB_SALT] = [0; LENW_FOB_SALT];
   eeprom_read(&mut salt, FOBMEM_FOB_SALT);
-  let salt_bytes: [u8; 4] = salt[0].to_ne_bytes();
+  let mut salt_bytes: [u8; LEN_FOB_SALT] = [0; LEN_FOB_SALT];
+  words_to_bytes(&salt, &mut salt_bytes);
+  let mut salted_pin :[u8; LEN_FOB_SALT + LEN_PIN_ATTEMPT] = [0; LEN_FOB_SALT+ LEN_PIN_ATTEMPT ];
+  salted_pin.copy_from_slice(&salt_bytes);
+  salted_pin[LEN_FOB_SALT..].copy_from_slice(&pin);
+  let computed_pin_hash_b = p256_cortex_m4::sha256(&salted_pin[..]);
+  let mut computed_pin_hash_w: [u32; 8] = [0;8];
+  bytes_to_words(&computed_pin_hash_b,&mut computed_pin_hash_w);
 
-  let mut salted_pin :[u8; 4 + LEN_PIN_ATTEMPT] = [0; 4 + LEN_PIN_ATTEMPT ];
-  salted_pin.copy_from_slice(&salt_bytes[0..3]);
-  salted_pin[3..].copy_from_slice(&pin);
-  let result = p256_cortex_m4::sha256(&salted_pin[..]);
-  // 4. wait 500ms
-  wait(2_000_000);
-  // 5. check pair_ack
-  let mut eeprom_pin_hash: [u32; LENW_PIN_HASH] = [0; LENW_PIN_HASH];
-  eeprom_read(&eeprom_pin_hash, FOBMEM_PIN_HASH);
-  // 6. do flowchart
-  if eeprom_pin_hash == salted_pin{
+  // 4. Wait 500ms
+  wait(2_000_000); // TODO
+  log!("Paired fob: Waiting 500ms for unpaired fob to respond");
 
-  }else{
-     wait(2_000_000); // change to 400 ms or time 
+  // 5. Check PAIR_ACK
+  loop {
+    // *timer += 1;
+    if uart_avail_board() {
+      let pair_ack: u8 = uart_readb_board();
+      match pair_ack {
+        MAGIC_PAIR_ACK => {
+          log!("Paired fob: Received PAIR_ACK");
+          break;
+        }
+        _ => {
+          log!("Paired fob: Received invalid magic byte: {:x?}", pair_ack);
+        }
+      }
+    }
+    // TODO: Add timeout check "Could not find unpaired fob"
   }
-  
-  
+
+  // Compute hash equality
+  let mut eeprom_pin_hash: [u32; LENW_PIN_HASH] = [0; LENW_PIN_HASH];
+  eeprom_read(&mut eeprom_pin_hash, FOBMEM_PIN_HASH);
+  if eeprom_pin_hash == computed_pin_hash_w {
+    log!("Paired fob: PIN is correct");
+    uart_writeb_board(MAGIC_PAIR_FIN);
+    log!("Paired fob: Sent PAIR_FIN to unpaired fob");
+    // TODO: Write all the features etc for the final message
+  } else {
+    log!("Paired fob: PIN is incorrect");
+    uart_writeb_board(MAGIC_PAIR_RST);
+    log!("Paired fob: Sent PAIR_RST to unpaired fob");
+    wait(2_000_000); // TODO: UART blocking (change to 400ms or time remaining)
+    log!("Paired fob: PAIR transaction failed");
+    return
+  }
+
+  log!("Paired fob: PAIR transaction completed")
 }
 
 fn unpaired_fob_pairing() {
-  // we just received a PAIR_SYN, so now we need to read the PIN
-  // 1. read pin from uart
+  // We just received a PAIR_SYN, so now we need to read the PIN
+  // 1. Read PIN from UART
   let mut pin: [u8; LEN_PIN_ATTEMPT] = [0; LEN_PIN_ATTEMPT];
   uart_read_board(&mut pin);
+  log!("Unpaired fob: PAIR_SYN PIN value: {:x?}", pin);
 
-  // 2. send pair ack to paired fob
-  let mut pair_ack_msg: u8 = MAGIC_PAIR_ACK;
+  // 2. Send PAIR_ACK to paired fob
+  let pair_ack_msg: u8 = MAGIC_PAIR_ACK;
   uart_writeb_board(pair_ack_msg);
+  log!("Unpaired fob: Sent PAIR_ACK to paired fob");
 
-  // 3. receive pair_fin magic from paired fob
-  let mut magic_pair_fin: u8 = 0;
-  magic_pair_fin = uart_readb_board();
+  let mut secret: [u8; LEN_FOB_SECRET] = [0; LEN_FOB_SECRET];
+  let mut car_id: [u8; LEN_CAR_ID] = [0; LEN_CAR_ID];
+  let mut feature1: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut feature2: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut feature3: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut feature_sig1: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  let mut feature_sig2: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  let mut feature_sig3: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  let mut car_public: [u8; LEN_CAR_PUBLIC] = [0; LEN_CAR_PUBLIC];
 
-  if (magic_pair_fin != MAGIC_PAIR_FIN) {
-    //idk
+  // 3. Receive PAIR_FIN magic from paired fob
+  loop {
+    // *timer += 1;
+    if uart_avail_board() {
+      let pair_fin: u8 = uart_readb_board();
+      match pair_fin {
+        MAGIC_PAIR_FIN => {
+          log!("Unpaired fob: Received PAIR_FIN");
+          break;
+        }
+        MAGIC_PAIR_RST => {
+          log!("Unpaired fob: Received PAIR_RST");
+          log!("Unpaired fob: PAIR transaction failed");
+          return;
+        }
+        _ => {
+          log!("Unpaired fob: Received invalid magic byte: {:x?}", pair_fin);
+        }
+      }
+    }
   }
 
-  // 4. receive secret from paired fob
-  let mut secret: [u8; LEN_FOB_SECRET_ENC] = [0; LEN_FOB_SECRET_ENC];
+  // 4. Receive secret, car_id, features, feature_sigs, and car_public from paired fob
   uart_read_board(&mut secret);
-
-  // 5. receive car_id from paired fob
-  let mut car_id: [u8; LEN_CAR_ID] = [0; LEN_CAR_ID];
   uart_read_board(&mut car_id);
-  
-  
+  uart_read_board(&mut feature1);
+  uart_read_board(&mut feature2);
+  uart_read_board(&mut feature3);
+  uart_read_board(&mut feature_sig1);
+  uart_read_board(&mut feature_sig2);
+  uart_read_board(&mut feature_sig3);
+  uart_read_board(&mut car_public);
+  // TODO: implement a timeout for PAIR_FIN taking too long, but it's kinda annoying to do
+  log!("Unpaired fob: Received PAIR_FIN data from paired fob");
 
+  // 5. Calculate new FOB_SECRET_ENC by combining the fob's own salt with the pin from earlier (we don't know how to do this yet)
 
-  
-  
+  // 6. Create new FOB_PIN_HASH by hashing the salt + pin with SHA256
+  let mut salt: [u32; LENW_FOB_SALT] = [0; LENW_FOB_SALT];
+  eeprom_read(&mut salt, FOBMEM_FOB_SALT);
+  let mut salt_bytes: [u8; LEN_FOB_SALT] = [0; LEN_FOB_SALT];
+  words_to_bytes(&salt, &mut salt_bytes);
+  let mut salted_pin :[u8; LEN_FOB_SALT + LEN_PIN_ATTEMPT] = [0; LEN_FOB_SALT+ LEN_PIN_ATTEMPT ];
+  salted_pin.copy_from_slice(&salt_bytes);
+  salted_pin[LEN_FOB_SALT..].copy_from_slice(&pin);
+  let fob_pin_hash = p256_cortex_m4::sha256(&salted_pin); 
+
+  // 7. write new FOB_SECRET_ENC, FOB_PIN_HASH, FOB_CAR_ID, FOB_FEATURES, FOB_FEATURE_SIGS, and FOB_CAR_PUBLIC to EEPROM
+
+  log!("Unpaired fob: PAIR transaction completed")  
 }
