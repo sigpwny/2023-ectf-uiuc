@@ -5,7 +5,7 @@ use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
-    driverlib::{self, uart_read_host, uart_avail_board, uart_write_board, uart_writeb_board, uart_readb_board, eeprom_read, eeprom_write, uart_read_board, wait},
+    driverlib::{self, uart_read_host, uart_avail_board, uart_write_board, uart_writeb_board, uart_readb_board, eeprom_read, eeprom_write, uart_read_board, read_sw_1, wait},
     log, setup_board, Board, words_to_bytes, bytes_to_words
 };
 
@@ -82,6 +82,13 @@ const MAGIC_PAIR_ACK:         u8 = 0x42;
 const MAGIC_PAIR_FIN:         u8 = 0x43;
 const MAGIC_PAIR_RST:         u8 = 0x44;
 
+const MAGIC_UNLOCK_REQ:         u8 = 0x60;
+const MAGIC_UNLOCK_CHAL:         u8 = 0x61;
+const MAGIC_UNLOCK_RESP:         u8 = 0x62;
+const MAGIC_UNLOCK_GOOD:         u8 = 0x63;
+const MAGIC_UNLOCK_FEAT:         u8 = 0x64;
+
+
 /**
  * Message lengths
  */
@@ -125,6 +132,9 @@ fn main() -> ! {
   // Read from host UART, log output, and write back to host UART
   loop {
     timer += 1;
+    if read_sw_1() {
+      request_unlock();
+    }
     if driverlib::uart_avail_host() {
       let data: u8 = driverlib::uart_readb_host();
       match data {
@@ -297,7 +307,7 @@ fn unpaired_fob_pairing() {
 }
 
 
-fn unlock_request() {
+fn request_unlock() {
     // *From paired_fob_pairing function lines 166-170*
     // Send unlock request to car
   
@@ -328,4 +338,5 @@ fn unlock_request() {
   // // send installed features (feature numbers, feature signatures)
   
   // }
+  
   
