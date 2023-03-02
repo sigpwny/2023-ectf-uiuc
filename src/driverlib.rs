@@ -40,10 +40,24 @@ pub fn uart_readb_host() -> u8 {
     ret as u8
 }
 
+// Read bytes from the host into an array. Only reads data.len() bytes
+pub fn uart_read_host(data: &mut [u8]) {
+    for byte in data {
+        *byte = uart_readb_host();
+    }
+}
+
 /// Read a byte from the board.
 pub fn uart_readb_board() -> u8 {
     let ret: i32 = unsafe { driverwrapper::uart_readb_board() };
     ret as u8
+}
+
+// Read bytes from the board 
+pub fn uart_read_board(data: &mut [u8]){
+    for byte in data {
+        *byte = uart_readb_board();
+    }
 }
 
 /// Write a byte to the host.
@@ -53,13 +67,25 @@ pub fn uart_writeb_host(data: u8) {
     }
 }
 
+// Write bytes to the host
+pub fn uart_write_host(data: & [u8]){
+    for byte in data{
+        uart_writeb_host(*byte);
+    }
+}
+
 /// Write a byte to the board.
 pub fn uart_writeb_board(data: u8) {
     unsafe {
         driverwrapper::uart_writeb_board(data);
     }
 }
-
+// Write bytes to the board
+pub fn uart_write_board(data: &[u8]) {
+    for byte in data {
+        uart_writeb_board(*byte);
+    }
+}
 /// Read from the EEPROM. Address must be a multiple of 4.
 pub fn eeprom_read(data: &mut [u32], address: u32) {
     if data.len() == 0 {
@@ -85,4 +111,11 @@ pub fn eeprom_write(data: &[u32], address: u32) {
 /// Check if switch 1 is pressed. Returns true if pressed.
 pub fn read_sw_1() -> bool {
     unsafe { driverwrapper::read_sw_1() }
+}
+
+/// Waits for one NOP cycle (could take multiple cycles on the board)
+pub fn wait(length: u32) {
+    for _ in 0..length {
+        cortex_m::asm::nop();
+    }
 }
