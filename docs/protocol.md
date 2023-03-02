@@ -152,6 +152,8 @@ Sent from the host computer to a paired fob. Only paired fobs will act on
 this message. The fob will not make any attempt to validate the feature, 
 except that a valid feature index is provided (1, 2, or 3).
 
+Magic byte: 0x50
+
 |             | Magic     | Feature index        | Feature number | Feature signature |
 | ----------- | --------- | -------------------- | -------------- | ----------------- |
 | **Bytes**   | `\x50`    | `\x01`,`\x02`,`\x03` | `\x??`         |                   |
