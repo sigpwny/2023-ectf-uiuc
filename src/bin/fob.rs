@@ -295,3 +295,37 @@ fn unpaired_fob_pairing() {
 
   log!("Unpaired fob: PAIR transaction completed")  
 }
+
+
+fn unlock_request() {
+    // *From paired_fob_pairing function lines 166-170*
+    // Send unlock request to car
+  
+    // *From paired_fob_pairing function lines 166-170*
+    // receive nonce, add 1 to the nonce and send result back to car (UNLOCK_RESP)
+  
+    // *From paired_fob_pairing function lines 188-202*
+    // read car unlock result (success/fail)
+  
+    // *Not yet implemented - line 206-220 (sending success/fail message)*
+    // send installed features (feature numbers, feature signatures)
+  }
+  
+  // Fob.rs
+  // Functions:
+  // unlock_request() {
+  
+  // *From paired_fob_pairing function lines 166-170*
+  // // Send unlock request to car
+  
+  // *From paired_fob_pairing function lines 166-170*
+  // // receive nonce, add 1 to the nonce and send result back to car (UNLOCK_RESP)
+  
+  // *From paired_fob_pairing function lines 188-202*
+  // // read car unlock result (success/fail)
+  
+  // *Not yet implemented - line 206-220 (sending success/fail message)*
+  // // send installed features (feature numbers, feature signatures)
+  
+  // }
+  
