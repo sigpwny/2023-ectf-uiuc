@@ -99,7 +99,7 @@ const MSGLEN_PAIR_FIN:        usize = LEN_FOB_SECRET_ENC +
 #[entry]
 fn main() -> ! {
   let mut board: Board = setup_board();
-  let mut is_paired: bool = true;
+  let mut is_paired: bool = true;   
 
   // log!("This is fob!");
 
@@ -350,34 +350,48 @@ fn unpaired_fob_pairing() {
 
 fn enable_feature() {
   // We just received ENAB_FEAT
-  // 1. Read the feature number
-  // LEN_FEATURE_NUM + LEN_FEAT_SIG
-  // let mut feat_num: [u8; LEN_FEATURE_NUM] = [0; LEN_FEATURE_NUM];
-  // uart_read_host(&mut feat_num); // may need to read newline char
-  // log!("Paired fob: ENAB_FEAT feature number: {:x?}", feat_num);
+  // 1. Read the feature index
+  // LEN_FEATURE_NUM + LEN_FEATURE_NUM + LEN_FEAT_SIG
+  let mut feat_idx: [u8; LEN_FEATURE_NUM] = [0; LEN_FEATURE_NUM]; // idx is also 1 byte
+  uart_read_host(&mut feat_idx); // may need to read newline char
+  log!("Paired fob: ENAB_FEAT feature index: {:x?}", feat_idx);
 
-  // // 1a) check feature number, if it's not valid we reject request
-  // if ()
+  // 2. check feature index, if it's not valid we reject request
+  if (feat_idx[0] < 0x1 && feat_idx[0] > 0x3) {
+    log!("Paired fob: Received invalid feature index: {:x?}", feat_idx[0]);
+    return;
+  }
 
-  // // 5. Check PAIR_ACK
-  // loop {
-  //   // *timer += 1;
-  //   if uart_avail_board() {
-  //     let pair_ack: u8 = uart_readb_board();
-  //     match pair_ack {
-  //       MAGIC_PAIR_ACK => {
-  //         log!("Paired fob: Received PAIR_ACK");
-  //         break;
-  //       }
-  //       _ => {
-  //         log!("Paired fob: Received invalid magic byte: {:x?}", pair_ack);
-  //       }
-  //     }
-  //   }
-  //   // TODO: Add timeout check "Could not find unpaired fob"
-  // }
+  // 3. if feature index is good, read in the feature number
+  let mut feat_num: [u8; LEN_FEATURE_NUM] = [0; LEN_FEATURE_NUM];
+  uart_read_host(&mut feat_num); // may need to read newline char
+  log!("Paired fob: ENAB_FEAT feature number: {:x?}", feat_num);
 
-  // eeprom stuff
+  // 4. also read in feature signature
+  let mut feat_sig: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  uart_read_host(&mut feat_sig); // may need to read newline char
+  log!("Paired fob: ENAB_FEAT feature signature: {:x?}", feat_sig);
+
+  // 5. convert each item to words
+  let mut feat_num_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
+  let mut feat_sig_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
+  bytes_to_words(&feat_num, &mut feat_num_w);
+  bytes_to_words(&feat_sig, &mut feat_sig_w);
+
+  // 6. write the new things to eeprom
+  if (feat_idx[0] == 0x1) {
+    eeprom_write(&feat_num_w, FOBMEM_FEAT_1);
+    eeprom_write(&feat_sig_w, FOBMEM_FEAT_1_SIG);
+    log!("Paired fob: Feature written to slot 1");
+  } else if (feat_idx[0] == 0x2) {
+    eeprom_write(&feat_num_w, FOBMEM_FEAT_2);
+    eeprom_write(&feat_sig_w, FOBMEM_FEAT_2_SIG);
+    log!("Paired fob: Feature written to slot 2");
+  } else if (feat_idx[0] == 0x3) {
+    eeprom_write(&feat_num_w, FOBMEM_FEAT_3);
+    eeprom_write(&feat_sig_w, FOBMEM_FEAT_3_SIG);
+    log!("Paired fob: Feature written to slot 3");
+  }
 
   log!("Paired fob: Feature enable completed")
 }
