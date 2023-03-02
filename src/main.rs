@@ -4,23 +4,29 @@
 use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
 
-use tiva::{driverlib, setup_board, Board, log};
+use tiva::{
+    driverlib::{self, eeprom_read, eeprom_write},
+    log, setup_board, Board,
+};
 
 #[entry]
 fn main() -> ! {
     let mut board: Board = setup_board();
 
     log!("Hello, world!");
+    write_str_to_host("Hello, world!\n");
 
     crypto_example();
+
+    eeprom_example();
 
     led_and_uart_example(&mut board)
 }
 
 fn crypto_example() {
     // key generation
+    use p256_cortex_m4::SecretKey;
     use rand_chacha::rand_core::SeedableRng;
-    use p256_cortex_m4::{SecretKey};
 
     // The only time we need crypto on the device is:
     // 1. The car generates a random nonce, which the fob signs and the car verifies
@@ -34,6 +40,11 @@ fn crypto_example() {
     let message: &[u8] = b"Some text";
     let signature = signing_key.sign(message, &mut rng);
 
+    let buf: [u8; 64] = signature.to_untagged_bytes();
+    write_str_to_host("Signature: ");
+    write_to_hex(&buf);
+    write_str_to_host("\n");
+
     let verifying_key = signing_key.public_key();
     assert!(verifying_key.verify(message, &signature));
     log!("Signature verified!");
@@ -42,18 +53,22 @@ fn crypto_example() {
     use p256_cortex_m4::sha256;
 
     let result = sha256(&b"hello world"[..]);
-    log!("Hash: {:?}", result);
+
+    write_str_to_host("Hash: ");
+    write_to_hex(&result);
+    write_str_to_host("\n");
 }
 
 fn led_and_uart_example(board: &mut Board) -> ! {
     let mut toggle = true;
     loop {
-        if driverlib::check_switch() {
+        if driverlib::read_sw_1() {
             log!("SW1 is pressed");
+            driverlib::uart_writeb_host(b'!');
         } else {
             log!("SW1 is not pressed");
+            driverlib::uart_writeb_host('_' as u8);
         }
-        driverlib::uart_writeb_host('a' as u8);
 
         if toggle {
             board.led_green.set_high().unwrap();
@@ -62,12 +77,57 @@ fn led_and_uart_example(board: &mut Board) -> ! {
         }
         toggle = !toggle;
 
-        wait(1e5 as u32);
+        wait(2_000_000);
     }
 }
 
 fn wait(length: u32) {
     for _ in 0..length {
         cortex_m::asm::nop();
+    }
+}
+
+fn eeprom_example() {
+    const WRITE_LOC: u32 = 0;
+    const WRITE_SIZE: usize = 512;
+    // initalize our data
+    let mut wdata: [u32; WRITE_SIZE] = [0; WRITE_SIZE];
+    for address in 0..WRITE_SIZE {
+        wdata[address] = address as u32;
+    }
+
+    // Write Our data
+    eeprom_write(&wdata, WRITE_LOC);
+
+    // Read out data
+    let mut rdata: [u32; WRITE_SIZE] = [0; WRITE_SIZE];
+    eeprom_read(&mut rdata, WRITE_LOC);
+    for address in 0..WRITE_SIZE {
+        assert!(wdata[address] == rdata[address]);
+    }
+
+    log!("EEPROM Tests passed");
+}
+
+fn write_str_to_host(s: &str) {
+    for c in s.bytes() {
+        driverlib::uart_writeb_host(c);
+    }
+}
+
+fn write_to_hex(data: &[u8]) {
+    for byte in data {
+        let hex1: u8 = byte_to_half_hex(byte >> 4);
+        let hex2: u8 = byte_to_half_hex(byte & 0x0F);
+        driverlib::uart_writeb_host(hex1 as u8);
+        driverlib::uart_writeb_host(hex2 as u8);
+    }
+}
+
+fn byte_to_half_hex(byte: u8) -> u8 {
+    if byte > 9 {
+        byte + 87
+    } else {
+        byte + 48
     }
 }

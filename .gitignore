@@ -1,2 +1,6 @@
 /target
 /tivaware/driverlib/gcc
+
+# Ignore user config files
+.vscode
+.DS_Store
