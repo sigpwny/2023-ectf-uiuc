@@ -1,4 +1,4 @@
- from fastecdsa import keys, curve
+from fastecdsa import keys, curve
 priv_key, pub_key = keys.gen_keypair(curve.P256)
 
 import hashlib
@@ -39,11 +39,20 @@ addresses = {
 file = open('EEPROM', "r+b") 
 num_bytes = 2048
 file.write(bytes("f", 'utf-8') * num_bytes)
+i = 11
 for key in addresses:
     offset = addresses[key]
     file.seek(int(offset, base=16)) 
-    if (key == "FOBMEM_PIN_HASH"):
+    if (key == "FOBMEM_FOB_SALT"):
         data = d
-        file.write(data) 
+    elif (key == "FOBMEM_PIN_HASH"):
+        data = pin
+    else:
+        s = ""
+        for j in range(0, 16):
+            s += str(i)
+        data = bytes(s, 'utf-8')
+        i += 1
+    file.write(data)
 
 file.close()
