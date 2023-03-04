@@ -5,9 +5,12 @@ use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
-    driverlib::{self, uart_read_host, uart_avail_board, uart_write_board, uart_writeb_board, uart_readb_board, eeprom_read, eeprom_write, uart_read_board, read_sw_1, wait},
-    log, setup_board, Board, words_to_bytes, bytes_to_words
+  driverlib::*,
+  driverlib::{self},
+  log, setup_board, Board, words_to_bytes, bytes_to_words
 };
+
+use p256_cortex_m4::SecretKey;
 
 /**
  * EEPROM state addresses (specifically for fob)
@@ -57,6 +60,10 @@ const LENW_CAR_ID:            usize = LEN_CAR_ID / 4;
 const LENW_FEAT:              usize = LEN_FEAT / 4;
 const LENW_FEAT_SIG:          usize = LEN_FEAT_SIG / 4;
 
+// Unlock specific state
+const LEN_NONCE:              usize = 8; // 64-bit nonce
+const LEN_NONCE_SIG:          usize = 64;
+
 // Pairing specific state
 const LEN_FOB_SECRET_ENC:     usize = 32;
 const LEN_FOB_SALT:           usize = 12;
@@ -100,11 +107,13 @@ const MSGLEN_PAIR_FIN:        usize = LEN_FOB_SECRET_ENC +
                                       (LEN_FEAT_SIG * 3) + 
                                       LEN_CAR_PUBLIC;
                                       // features sent in index order (1, 2, 3)
+const MSGLEN_UNLOCK_CHAL:     usize = LEN_NONCE + LEN_NONCE_SIG;
 
 #[entry]
 fn main() -> ! {
   let mut board: Board = setup_board();
   let mut is_paired: bool = true;
+  let mut is_unlocked: bool = true;
 
   // log!("This is fob!");
 
@@ -308,35 +317,59 @@ fn unpaired_fob_pairing() {
 
 
 fn request_unlock() {
-    // *From paired_fob_pairing function lines 166-170*
-    // Send unlock request to car
+
+  // Send unlock request to car
+  let mut unlock_request: [u8] = [MAGIC_UNLOCK_REQ]; 
+  uart_write_board(&pair_syn_msg);
+  log!("Fob: Sent UNLOCK_REQ to fob");
   
-    // *From paired_fob_pairing function lines 166-170*
-    // receive nonce, add 1 to the nonce and send result back to car (UNLOCK_RESP)
-  
-    // *From paired_fob_pairing function lines 188-202*
-    // read car unlock result (success/fail)
-  
-    // *Not yet implemented - line 206-220 (sending success/fail message)*
-    // send installed features (feature numbers, feature signatures)
+  // receive unlock challenge from car
+  loop {
+    // *timer += 1;
+    if uart_avail_board() {
+      let unlock_msg: u8 = uart_readb_board();
+      if unlock_msg == MAGIC_UNLOCK_CHAL {
+        log!("Fob: Received UNLOCK_CHAL");
+        let mut unlock_chal_msg: [u8; MSGLEN_UNLOCK_CHAL] = [0; MSGLEN_UNLOCK_CHAL];
+        uart_read_board(&mut unlock_chal_msg);
+        // extract nonce from message
+        // TODOODODOODODODOODODOODOD
+        let mut car_nonce_bytes: [u8, LEN_NONCE] = [0; LEN_NONCE];
+        let car_nonce = ;
+        // END TODOODODOODODODOODODOODOD
+        log!("Fob: received nonce value: {:x?}", car_nonce);
+        // add 1 to the nonce
+        nonce += 1;
+        // sign nonce
+        log!("fob: Signing Nonce");
+        let mut fob_secret_words: [u8; LEN_FOB_SECRET] = [0; LEN_FOB_SECRET];
+        eeprom_read(FOBMEM_FOB_SECRET, &mut fob_secret_words);
+        let fob_secret_bytes = bytes_to_words(&fob_secret_words);
+        let fob_secret = SecretKey::from_bytes(&fob_secret_bytes).unwrap();
+      
+        // Use the fob secret key to sign the nonce
+        let fob_signed_nonce = fob_secret.sign(&fob_nonce.to_be_bytes()).to_be_bytes();
+        // send result back to car (UNLOCK_RESP)
+        uart_writeb_board(fob_signed_nonce);
+        log!("Fob: Sent signed nonce to car");
+
+        break;
+      }
+    }
+
+    loop {
+      // read car unlock result (success/fail)
+      if uart_avail_board() {
+        let result_msg: u8 = uart_readb_board();
+        if result_msg == MAGIC_UNLOCK_GOOD {
+          log!("fob: Car unlocked! :)");
+          // send_features(), send installed features (feature numbers, feature signatures)
+          break;
+        }
+      }
+      log!("fob: Car not unlocked :(");
+    }
   }
-  
-  // Fob.rs
-  // Functions:
-  // unlock_request() {
-  
-  // *From paired_fob_pairing function lines 166-170*
-  // // Send unlock request to car
-  
-  // *From paired_fob_pairing function lines 166-170*
-  // // receive nonce, add 1 to the nonce and send result back to car (UNLOCK_RESP)
-  
-  // *From paired_fob_pairing function lines 188-202*
-  // // read car unlock result (success/fail)
-  
-  // *Not yet implemented - line 206-220 (sending success/fail message)*
-  // // send installed features (feature numbers, feature signatures)
-  
-  // }
-  
-  
+}
+
+
