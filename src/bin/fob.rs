@@ -5,8 +5,9 @@ use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
-    driverlib::{self, uart_read_host, uart_avail_board, uart_write_board, uart_writeb_board, uart_readb_board, eeprom_read, eeprom_write, uart_read_board, wait},
-    log, setup_board, Board, words_to_bytes, bytes_to_words
+  driverlib::*,
+  driverlib::{self},
+  log, setup_board, Board, words_to_bytes, bytes_to_words, sha256
 };
 
 /**
@@ -173,7 +174,7 @@ fn paired_fob_pairing() {
   let mut salted_pin :[u8; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT] = [0; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT ];
   salted_pin[..LEN_FOB_SALT].copy_from_slice(&salt_bytes); 
   salted_pin[LEN_FOB_SALT + 1..].copy_from_slice(&pin);
-  let computed_pin_hash_b = p256_cortex_m4::sha256(&salted_pin[..]);
+  let computed_pin_hash_b = sha256(&salted_pin[..]);
   let mut computed_pin_hash_w: [u32; 8] = [0;8];
   bytes_to_words(&computed_pin_hash_b,&mut computed_pin_hash_w);
 
@@ -378,7 +379,7 @@ fn unpaired_fob_pairing() {
   let mut salted_pin :[u8; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT] = [0; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT ];
   salted_pin[..LEN_FOB_SALT].copy_from_slice(&salt_bytes); // TODO: PANIC: PanicInfo { payload: Any { .. }, message: Some(source slice length (12) does not match destination slice length (15)), location: Location { file: "src\\bin\\fob.rs", line: 177, col: 14 }, can_unwind: true }
   salted_pin[LEN_FOB_SALT + 1..].copy_from_slice(&pin);
-  let pin_hash_bytes = p256_cortex_m4::sha256(&salted_pin);
+  let pin_hash_bytes = sha256(&salted_pin);
   let mut pin_hash: [u32; LENW_PIN_HASH] = [0; LENW_PIN_HASH];
   bytes_to_words(&pin_hash_bytes, &mut pin_hash);
 

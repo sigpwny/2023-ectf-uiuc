@@ -18,5 +18,7 @@ extern void uart_writeb_board(uint8_t data);
 extern void eeprom_read(uint32_t *data, uint32_t address, uint32_t count);
 extern void eeprom_write(uint32_t *data, uint32_t address, uint32_t count);
 extern bool read_sw_1(void);
+extern void get_temp_samples(uint32_t* samples);
+extern void sleep_us(uint32_t us);
 
 #endif // WRAPPER_H_

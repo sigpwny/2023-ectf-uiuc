@@ -11,6 +11,8 @@ mod driverwrapper {
         pub(super) fn eeprom_read(data: *mut u32, address: u32, length: u32);
         pub(super) fn eeprom_write(data: *const u32, address: u32, length: u32);
         pub(super) fn read_sw_1() -> bool;
+        pub(super) fn get_temp_samples(data: *mut u32);
+        pub(super) fn sleep_us(us: u32);
     }
 }
 
@@ -118,4 +120,14 @@ pub fn wait(length: u32) {
     for _ in 0..length {
         cortex_m::asm::nop();
     }
+}
+
+pub fn get_temp_samples(samples: &mut [u32; 8]) {
+    unsafe {
+        driverwrapper::get_temp_samples(samples.as_mut_ptr())
+    }
+}
+
+pub fn sleep_us(us: u32) {
+    unsafe { driverwrapper::sleep_us(us) }
 }
