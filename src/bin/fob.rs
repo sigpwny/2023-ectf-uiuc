@@ -7,10 +7,8 @@ use embedded_hal::digital::v2::OutputPin;
 use tiva::{
   driverlib::*,
   driverlib::{self},
-  log, setup_board, Board, words_to_bytes, bytes_to_words
+  log, setup_board, Board, words_to_bytes, bytes_to_words, sha256
 };
-
-use p256_cortex_m4::SecretKey;
 
 /**
  * EEPROM state addresses (specifically for fob)
@@ -206,7 +204,7 @@ fn paired_fob_pairing() {
   let mut salted_pin :[u8; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT] = [0; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT ];
   salted_pin[..LEN_FOB_SALT].copy_from_slice(&salt_bytes); // TODO: PANIC: PanicInfo { payload: Any { .. }, message: Some(source slice length (12) does not match destination slice length (15)), location: Location { file: "src\\bin\\fob.rs", line: 177, col: 14 }, can_unwind: true }
   salted_pin[LEN_FOB_SALT + 1..].copy_from_slice(&pin);
-  let computed_pin_hash_b = p256_cortex_m4::sha256(&salted_pin[..]);
+  let computed_pin_hash_b = sha256(&salted_pin[..]);
   let mut computed_pin_hash_w: [u32; 8] = [0;8];
   bytes_to_words(&computed_pin_hash_b,&mut computed_pin_hash_w);
 
@@ -319,7 +317,7 @@ fn unpaired_fob_pairing() {
   let mut salted_pin :[u8; LEN_FOB_SALT + LEN_PIN_ATTEMPT] = [0; LEN_FOB_SALT+ LEN_PIN_ATTEMPT ];
   salted_pin.copy_from_slice(&salt_bytes);
   salted_pin[LEN_FOB_SALT..].copy_from_slice(&pin);
-  let fob_pin_hash = p256_cortex_m4::sha256(&salted_pin); 
+  let fob_pin_hash = sha256(&salted_pin); 
 
   // 7. write new FOB_SECRET_ENC, FOB_PIN_HASH, FOB_CAR_ID, FOB_FEATURES, FOB_FEATURE_SIGS, and FOB_CAR_PUBLIC to EEPROM
 

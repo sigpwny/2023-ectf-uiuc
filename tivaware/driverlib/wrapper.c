@@ -8,14 +8,19 @@
 
 #include "driverlib/wrapper.h"
 
+#include "driverlib/adc.c"
 #include "driverlib/eeprom.c"
 #include "driverlib/gpio.c"
 #include "driverlib/pin_map.h"
 #include "driverlib/uart.c"
 #include "driverlib/sysctl.c"
 
+#include "inc/tm4c123gh6pm.h"
+
 #define HOST_UART ((uint32_t)UART0_BASE)
 #define BOARD_UART ((uint32_t)UART1_BASE)
+
+#define TEMP_SAMPLES 8
 
 /**
  * @brief Initialize the UART interfaces.
@@ -74,7 +79,26 @@ static void setup_board_link(void) {
   }
 }
 
+// https://gist.github.com/donghee/886adc391ab984756edb
+void adc_init(void) {
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+  while (!SysCtlPeripheralReady(SYSCTL_PERIPH_ADC0)) {}
+  // Disable oversample to increase noise
+  ADCHardwareOversampleConfigure(ADC0_BASE, 0);
+  ADCSequenceDisable(ADC0_BASE, 0);
+  ADCSequenceConfigure(ADC0_BASE, 0, ADC_TRIGGER_PROCESSOR, 0);
+  // Sample TEMP_SAMPLES samples and interrupt on last sample
+  for (int i = 0; i < TEMP_SAMPLES - 1; ++i) {
+    ADCSequenceStepConfigure(ADC0_BASE, 0, i, ADC_CTL_TS | ADC_CTL_SHOLD_4);
+  }
+  ADCSequenceStepConfigure(ADC0_BASE, 0, TEMP_SAMPLES - 1, ADC_CTL_TS | ADC_CTL_IE | ADC_CTL_END | ADC_CTL_SHOLD_4);
+  ADCSequenceEnable(ADC0_BASE, 0);
+}
+
 void init_system(void) {
+  // Initialize the ADC
+  adc_init();
+
   // Ensure EEPROM peripheral is enabled
   SysCtlPeripheralEnable(SYSCTL_PERIPH_EEPROM0);
   EEPROMInit();
@@ -98,4 +122,15 @@ void eeprom_write(uint32_t *data, uint32_t address, uint32_t count) { EEPROMProg
 
 bool read_sw_1(void) {
   return GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4) == 0;
+}
+
+void get_temp_samples(uint32_t* samples) {
+  ADCIntClear(ADC0_BASE, 0);
+  ADCProcessorTrigger(ADC0_BASE, 0);
+  while (!ADCIntStatus(ADC0_BASE, 0, false)) {}
+  ADCSequenceDataGet(ADC0_BASE, 0, samples);
+}
+
+void sleep_us(uint32_t us) {
+  SysCtlDelay((us * SysCtlClockGet()) / 3 / 1e6);
 }

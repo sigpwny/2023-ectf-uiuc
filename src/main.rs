@@ -6,7 +6,7 @@ use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
     driverlib::{self, eeprom_read, eeprom_write},
-    log, setup_board, Board,
+    log, setup_board, sha256, Board, Signer, Verifier, get_combined_entropy
 };
 
 #[entry]
@@ -19,6 +19,8 @@ fn main() -> ! {
     crypto_example();
 
     eeprom_example();
+
+    entropy_example();
 
     led_and_uart_example(&mut board)
 }
@@ -50,8 +52,6 @@ fn crypto_example() {
     log!("Signature verified!");
 
     // hashing example
-    use p256_cortex_m4::sha256;
-
     let result = sha256(&b"hello world"[..]);
 
     write_str_to_host("Hash: ");
@@ -107,6 +107,15 @@ fn eeprom_example() {
     }
 
     log!("EEPROM Tests passed");
+}
+
+fn entropy_example() {
+    write_str_to_host("Begin gathering entropy");
+    let entropy = get_combined_entropy();
+    write_str_to_host("entropy: ");
+    write_to_hex(&entropy);
+    write_str_to_host("\n");
+    log!("Entropy test completed");
 }
 
 fn write_str_to_host(s: &str) {
