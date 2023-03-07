@@ -48,6 +48,7 @@ const LEN_MAN_PUBLIC:         usize = 64;
 const LEN_CAR_ID:             usize = 4; // 1 byte at heart
 const LEN_FEAT:               usize = 4; // 1 byte at heart
 const LEN_FEAT_SIG:           usize = 64;
+const LEN_FLAG:               usize = 64;
 
 // in words (for accesing EEPROM)
 const LENW_FOB_SECRET:        usize = LEN_FOB_SECRET / 4;
@@ -59,6 +60,7 @@ const LENW_MAN_PUBLIC:        usize = LEN_MAN_PUBLIC / 4;
 const LENW_CAR_ID:            usize = LEN_CAR_ID / 4;
 const LENW_FEAT:              usize = LEN_FEAT / 4;
 const LENW_FEAT_SIG:          usize = LEN_FEAT_SIG / 4;
+const LENW_FLAG:              usize = LEN_FLAG / 4;
 
 // Unlock specific state
 const LEN_NONCE:              usize = 8; // 64-bit nonce
@@ -108,6 +110,7 @@ const MSGLEN_PAIR_FIN:        usize = LEN_FOB_SECRET_ENC +
                                       LEN_CAR_PUBLIC;
                                       // features sent in index order (1, 2, 3)
 const MSGLEN_UNLOCK_CHAL:     usize = LEN_NONCE + LEN_NONCE_SIG;
+const MSGLEN_UNLOCK_FEAT:     usize = (LEN_FEAT * 3) + (LEN_FEAT_SIG * 3);
 
 #[entry]
 fn main() -> ! {
@@ -162,6 +165,14 @@ fn main() -> ! {
             unpaired_fob_pairing();
             is_paired = true;
             board.led_blue.set_low().unwrap();
+          }
+        }
+        MAGIC_UNLOCK_GOOD => {
+          if is_unlocked {
+            log!("Unlocked fob: Received UNLOCK_GOOD");
+            board.led_green.set_high().unwrap();
+            unlock_send_features();
+            board.led_green.set_low().unwrap();
           }
         }
         // Add other magic bytes here
@@ -372,4 +383,32 @@ fn request_unlock() {
   }
 }
 
+fn unlock_send_features() {
+  // send UNLOCK_FEAT and features to car
+  let mut unlock_feat_msg: [u8; 1 + MSGLEN_UNLOCK_FEAT] = [0; 1 + MSGLEN_UNLOCK_FEAT];
+  let mut feature1: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut feature2: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut feature3: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut feature_sig1: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  let mut feature_sig2: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  let mut feature_sig3: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  // read features 1 2 and 3 from eeprom
+  eeprom_read(&mut feature1, FOBMEM_FEAT_1);
+  eeprom_read(&mut feature2, FOBMEM_FEAT_2);
+  eeprom_read(&mut feature3, FOBMEM_FEAT_3);
+  // read feature signatures 1 2 and 3 from eeprom
+  eeprom_read(&mut feature_sig1, FOBMEM_FEAT_1_SIG);
+  eeprom_read(&mut feature_sig2, FOBMEM_FEAT_2_SIG);
+  eeprom_read(&mut feature_sig3, FOBMEM_FEAT_3_SIG);
+  // copy features and feature signatures into message
+  unlock_feat_msg[0] = MAGIC_UNLOCK_FEAT;
+  unlock_feat_msg[1..].copy_from_slice(&feature1);
+  unlock_feat_msg[1+LEN_FEAT..].copy_from_slice(&feature2);
+  unlock_feat_msg[1+2*LEN_FEAT..].copy_from_slice(&feature3);
+  unlock_feat_msg[1+3*LEN_FEAT..].copy_from_slice(&feature_sig1);
+  unlock_feat_msg[1+3*LEN_FEAT+LEN_FEAT_SIG..].copy_from_slice(&feature_sig2);
+  unlock_feat_msg[1+3*LEN_FEAT+2*LEN_FEAT_SIG..].copy_from_slice(&feature_sig3);
 
+  uart_write_board(&unlock_feat_msg);
+  log!("Fob: Sent UNLOCK_FEAT to car");
+}
