@@ -14,8 +14,10 @@
 #include "driverlib/pin_map.h"
 #include "driverlib/uart.c"
 #include "driverlib/sysctl.c"
+#include "driverlib/timer.c"
 
 #include "inc/tm4c123gh6pm.h"
+#include "sysctl.h"
 
 #define HOST_UART ((uint32_t)UART0_BASE)
 #define BOARD_UART ((uint32_t)UART1_BASE)
@@ -95,9 +97,31 @@ void adc_init(void) {
   ADCSequenceEnable(ADC0_BASE, 0);
 }
 
+void delay_timer_init(void) {
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0);
+  while (!SysCtlPeripheralReady(SYSCTL_PERIPH_TIMER0)) {}
+  TimerConfigure(TIMER0_BASE, TIMER_CFG_ONE_SHOT);
+  TimerClockSourceSet(TIMER0_BASE, TIMER_CLOCK_SYSTEM);
+  TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+}
+
+void tick_timer_init(void) {
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_WTIMER0);
+  while (!SysCtlPeripheralReady(SYSCTL_PERIPH_WTIMER0)) {}
+  TimerConfigure(WTIMER0_BASE, TIMER_CFG_PERIODIC_UP);
+  TimerClockSourceSet(WTIMER0_BASE, TIMER_CLOCK_PIOSC);
+  TimerEnable(WTIMER0_BASE, TIMER_A);
+}
+
 void init_system(void) {
   // Initialize the ADC
   adc_init();
+
+  // Initialize the delay timer
+  delay_timer_init();
+
+  // Initialize the tick timer
+  tick_timer_init();
 
   // Ensure EEPROM peripheral is enabled
   SysCtlPeripheralEnable(SYSCTL_PERIPH_EEPROM0);
@@ -125,12 +149,35 @@ bool read_sw_1(void) {
 }
 
 void get_temp_samples(uint32_t* samples) {
-  ADCIntClear(ADC0_BASE, 0);
   ADCProcessorTrigger(ADC0_BASE, 0);
   while (!ADCIntStatus(ADC0_BASE, 0, false)) {}
+  ADCIntClear(ADC0_BASE, 0);
   ADCSequenceDataGet(ADC0_BASE, 0, samples);
 }
 
 void sleep_us(uint32_t us) {
-  SysCtlDelay((us * SysCtlClockGet()) / 3 / 1e6);
+  uint32_t cycles = ((uint64_t)(us) * (uint64_t)(SysCtlClockGet())) / 3 / 1e6;
+  SysCtlDelay(cycles);
+}
+
+// begin counting the delay timer
+void start_delay_timer_us(uint32_t us) {
+  uint32_t cycles = ((uint64_t)(us) * (uint64_t)(SysCtlClockGet())) / 1e6;
+  TimerLoadSet(TIMER0_BASE, TIMER_A, cycles);
+  TimerEnable(TIMER0_BASE, TIMER_A);
+}
+
+// wait for timeout
+void wait_delay_timer(void) {
+  while(!TimerIntStatus(TIMER0_BASE, false)) {}
+  TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+}
+
+// get remaining time
+uint32_t get_remaining_us_delay_timer(void) {
+  return ((uint64_t)(TimerValueGet(TIMER0_BASE, TIMER_A)) * 1e6) / ((uint64_t)(SysCtlClockGet()));
+}
+
+uint64_t get_tick_timer(void) {
+  return TimerValueGet64(WTIMER0_BASE);
 }

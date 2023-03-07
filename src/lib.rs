@@ -68,7 +68,7 @@ pub fn get_temp_entropy() -> [u8; 32] {
     let mut samples = [0u32; 8];
     let mut samples_lsb;
     let mut hash = Sha256::new();
-    for _ in 0..2048 {
+    for _ in 0..1024 {
         get_temp_samples(&mut samples);
         samples_lsb = samples.map(|x| x as u8);
         hash.update(samples_lsb);
