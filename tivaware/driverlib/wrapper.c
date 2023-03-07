@@ -17,7 +17,6 @@
 #include "driverlib/timer.c"
 
 #include "inc/tm4c123gh6pm.h"
-#include "sysctl.h"
 
 #define HOST_UART ((uint32_t)UART0_BASE)
 #define BOARD_UART ((uint32_t)UART1_BASE)
@@ -173,9 +172,26 @@ void wait_delay_timer(void) {
   TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
 }
 
+// Based on TimerEnable
+bool IsTimerEnabled(uint32_t ui32Base, uint32_t ui32Timer) {
+    // Check the arguments.
+    ASSERT(_TimerBaseValid(ui32Base));
+    ASSERT((ui32Timer == TIMER_A) || (ui32Timer == TIMER_B) ||
+           (ui32Timer == TIMER_BOTH));
+
+    // Check if the timer modules are enabled.
+    return (HWREG(ui32Base + TIMER_O_CTL) & (ui32Timer & (TIMER_CTL_TAEN |
+                                                  TIMER_CTL_TBEN))) != 0;
+}
+
 // get remaining time
 uint32_t get_remaining_us_delay_timer(void) {
-  return ((uint64_t)(TimerValueGet(TIMER0_BASE, TIMER_A)) * 1e6) / ((uint64_t)(SysCtlClockGet()));
+  if (IsTimerEnabled(TIMER0_BASE, TIMER_A)) {
+    uint32_t curr_timer = TimerValueGet(TIMER0_BASE, TIMER_A);
+    return ((uint64_t)(curr_timer) * 1e6) / ((uint64_t)(SysCtlClockGet()));
+  } else {
+    return 0;
+  }
 }
 
 uint64_t get_tick_timer(void) {

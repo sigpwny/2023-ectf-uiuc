@@ -5,7 +5,7 @@ use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
-    driverlib::{self, eeprom_read, eeprom_write, start_delay_timer_us, sleep_us, wait_delay_timer, get_tick_timer, get_temp_samples},
+    driverlib::{self, eeprom_read, eeprom_write, start_delay_timer_us, sleep_us, wait_delay_timer, get_tick_timer, get_temp_samples, get_remaining_us_delay_timer},
     log, setup_board, sha256, Board, Signer, Verifier, get_combined_entropy
 };
 
@@ -131,10 +131,12 @@ fn timer_example() {
     for i in 0..20 {
         start_delay_timer_us(1_000_000);
         sleep_us((i + 1) * 100_000);
+        write_to_hex(&get_remaining_us_delay_timer().to_be_bytes());
         wait_delay_timer();
         write_str_to_host("delay fired at ticker: ");
         write_to_hex(&get_tick_timer().to_be_bytes());
         write_str_to_host("\n");
+        write_str_to_host("time remaining: ");
     }
 }
 
