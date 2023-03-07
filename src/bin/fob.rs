@@ -72,7 +72,7 @@ const LENW_FOB_IS_PAIRED:     usize = LEN_FOB_IS_PAIRED / 4;
  * Temporary state lengths
  */
 const LEN_PIN_ATTEMPT:        usize = 3;
-const LEN_FEATURE_NUM:        usize = 1;
+const LEN_FEAT_IDX:           usize = 1;
 
 /**
  * Magic Bytes
@@ -399,35 +399,24 @@ fn unpaired_fob_pairing() {
 
 fn enable_feature() {
   // We just received ENAB_FEAT
-  // 1. Read the feature index
-  // LEN_FEATURE_NUM + LEN_FEATURE_NUM + LEN_FEAT_SIG
-  let mut feat_idx: [u8; LEN_FEATURE_NUM] = [0; LEN_FEATURE_NUM]; // idx is also 1 byte
-  uart_read_host(&mut feat_idx); // may need to read newline char
-  log!("Paired fob: ENAB_FEAT feature index: {:x?}", feat_idx);
-
-  // 2. check feature index, if it's not valid we reject request
-  if feat_idx[0] < 0x1 && feat_idx[0] > 0x3 {
-    log!("Paired fob: Received invalid feature index: {:x?}", feat_idx[0]);
-    return;
-  }
-
-  // 3. if feature index is good, read in the feature number
-  let mut feat_num: [u8; LEN_FEATURE_NUM] = [0; LEN_FEATURE_NUM];
-  uart_read_host(&mut feat_num); // may need to read newline char
-  log!("Paired fob: ENAB_FEAT feature number: {:x?}", feat_num);
-
-  // 4. also read in feature signature
+  // Read in data
+  let mut feat_idx: [u8; LEN_FEAT_IDX] = [0; LEN_FEAT_IDX];
+  let mut feat_num: [u8; LEN_FEAT] = [0; LEN_FEAT];
   let mut feat_sig: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
-  uart_read_host(&mut feat_sig); // may need to read newline char
+  uart_read_host(&mut feat_idx);
+  uart_read_host(&mut feat_num);
+  uart_read_host(&mut feat_sig);
+  log!("Paired fob: ENAB_FEAT feature index: {:x?}", feat_idx);
+  log!("Paired fob: ENAB_FEAT feature number: {:x?}", feat_num);
   log!("Paired fob: ENAB_FEAT feature signature: {:x?}", feat_sig);
 
-  // 5. convert each item to words
+  // Convert each data element to words
   let mut feat_num_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
   let mut feat_sig_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
   bytes_to_words(&feat_num, &mut feat_num_w);
   bytes_to_words(&feat_sig, &mut feat_sig_w);
 
-  // 6. write the new things to eeprom
+  // Write the data elements to EEPROM
   if feat_idx[0] == 0x1 {
     eeprom_write(&feat_num_w, FOBMEM_FEAT_1);
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_1_SIG);
@@ -440,9 +429,12 @@ fn enable_feature() {
     eeprom_write(&feat_num_w, FOBMEM_FEAT_3);
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_3_SIG);
     log!("Paired fob: Feature written to slot 3");
+  } else {
+    log!("Paired fob: Received invalid feature index: {:x?}", feat_idx[0]);
+    return;
   }
 
-  log!("Paired fob: Feature enable completed")
+  log!("Paired fob: Feature enabled")
 }
 
 fn is_paired() -> bool {
