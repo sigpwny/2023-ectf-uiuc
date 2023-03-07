@@ -183,7 +183,7 @@ fn paired_fob_pairing() {
 
   // 4. Wait 500ms
   log!("Paired fob: Waiting 500ms for unpaired fob to respond");
-  while get_remaining_us_delay_timer() > 500_000 {}
+  while get_remaining_us_delay_timer() > 400_000 {}
 
   // 5. Check PAIR_ACK
   loop {
