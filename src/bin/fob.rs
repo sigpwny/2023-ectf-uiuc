@@ -99,28 +99,7 @@ const MSGLEN_PAIR_FIN:        usize = LEN_FOB_SECRET_ENC +
 #[entry]
 fn main() -> ! {
   let mut board: Board = setup_board();
-  let mut is_paired: bool = true;   
-
   // log!("This is fob!");
-
-  // Write "supersecret!" to EEPROM
-  // Store "supersecret!" as a u32 array
-  // let secret_1: u32 = 0x73757065;
-  // let secret_2: u32 = 0x72736563;
-  // let secret_3: u32 = 0x72657421;
-  // let secret = [secret_1, secret_2, secret_3];
-  // Write to EEPROM
-  // driverlib::eeprom_write(&secret, 0);
-  // Read from EEPROM
-  // let mut read_out: [u32; 3] = [0; 3];
-  // driverlib::eeprom_read(&mut read_out, 0);
-  // log!("EEPROM readout: {:x?}", read_out);
-
-  // Define string of characters to write to UART
-  // let string: &[u8] = "This is fob, but over host serial!\n".as_bytes();
-  // for i in 0..string.len() {
-  //     driverlib::uart_writeb_host(string[i]);
-  // }
 
   let mut timer: u64 = 0;
 
@@ -131,7 +110,7 @@ fn main() -> ! {
       let data: u8 = driverlib::uart_readb_host();
       match data {
         MAGIC_PAIR_REQ => {
-          if is_paired {
+          if is_paired() {
             log!("Paired fob: Received PAIR_REQ");
             board.led_blue.set_high().unwrap();
             paired_fob_pairing();
@@ -139,7 +118,7 @@ fn main() -> ! {
           }
         }
         MAGIC_ENAB_FEAT => {
-          if is_paired {
+          if is_paired() {
             log!("Paired fob: Received ENAB_FEAT");
             board.led_blue.set_high().unwrap();
             enable_feature();
@@ -148,7 +127,7 @@ fn main() -> ! {
         }
         // Add other magic bytes here
         _ => {
-          log!("Received invalid magic byte: {:x?}", data);
+          log!("Paired: Received invalid magic byte: {:x?}", data);
         }
       }
     }
@@ -156,17 +135,16 @@ fn main() -> ! {
       let data: u8 = uart_readb_board();
       match data {
         MAGIC_PAIR_SYN => {
-          if !is_paired {
+          if !is_paired() {
             log!("Unpaired fob: Received PAIR_SYN");
             board.led_blue.set_high().unwrap();
             unpaired_fob_pairing();
-            is_paired = true;
             board.led_blue.set_low().unwrap();
           }
         }
         // Add other magic bytes here
         _ => {
-          log!("Received invalid magic byte: {:x?}", data);
+          log!("Unpaired: Received invalid magic byte: {:x?}", data);
         }
       }
     }
@@ -193,7 +171,7 @@ fn paired_fob_pairing() {
   let mut salt_bytes: [u8; LEN_FOB_SALT] = [0; LEN_FOB_SALT];
   words_to_bytes(&salt, &mut salt_bytes);
   let mut salted_pin :[u8; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT] = [0; LEN_FOB_SALT + 1 + LEN_PIN_ATTEMPT ];
-  salted_pin[..LEN_FOB_SALT].copy_from_slice(&salt_bytes); // TODO: PANIC: PanicInfo { payload: Any { .. }, message: Some(source slice length (12) does not match destination slice length (15)), location: Location { file: "src\\bin\\fob.rs", line: 177, col: 14 }, can_unwind: true }
+  salted_pin[..LEN_FOB_SALT].copy_from_slice(&salt_bytes); 
   salted_pin[LEN_FOB_SALT + 1..].copy_from_slice(&pin);
   let computed_pin_hash_b = p256_cortex_m4::sha256(&salted_pin[..]);
   let mut computed_pin_hash_w: [u32; 8] = [0;8];
@@ -268,6 +246,16 @@ fn paired_fob_pairing() {
     words_to_bytes(& feature_sig2,&mut feature_sig2_bytes);
     words_to_bytes(& feature_sig3,&mut feature_sig3_bytes);
     words_to_bytes(& car_public,&mut car_public_bytes);
+
+    log!("secret_bytes {:?}", secret_bytes);
+    log!("car_id_bytes {:?}", car_id_bytes);
+    log!("feature1_bytes {:?}", feature1_bytes);
+    log!("feature2_bytes {:?}", feature2_bytes);
+    log!("feature3_bytes {:?}", feature3_bytes);
+    log!("feature_sig1_bytes {:?}", feature_sig1_bytes);
+    log!("feature_sig2_bytes {:?}", feature_sig2_bytes);
+    log!("feature_sig3_bytes {:?}", feature_sig3_bytes);
+    log!("car_public_bytes {:?}", car_public_bytes);
 
     uart_write_board(&mut secret_bytes);
     uart_write_board(&mut car_id_bytes);
@@ -346,6 +334,16 @@ fn unpaired_fob_pairing() {
   uart_read_board(&mut feature_sig2);
   uart_read_board(&mut feature_sig3);
   uart_read_board(&mut car_public);
+
+  log!("secret_bytes {:?}", secret);
+  log!("car_id_bytes {:?}", car_id);
+  log!("feature1 {:?}", feature1);
+  log!("feature2 {:?}", feature2);
+  log!("feature3 {:?}", feature3);
+  log!("feature_sig1 {:?}", feature_sig1);
+  log!("feature_sig2 {:?}", feature_sig2);
+  log!("feature_sig3 {:?}", feature_sig3);
+  log!("car_public {:?}", car_public);
   // TODO: implement a timeout for PAIR_FIN taking too long, but it's kinda annoying to do
   log!("Unpaired fob: Received PAIR_FIN data from paired fob");
 
@@ -395,7 +393,7 @@ fn unpaired_fob_pairing() {
   eeprom_write(&feature_sig3_w, FOBMEM_FEAT_3_SIG);
   eeprom_write(&car_public_w, FOBMEM_CAR_PUBLIC);
   eeprom_write(&pin_hash, FOBMEM_PIN_HASH);
-  
+  set_paired();
   log!("Unpaired fob: PAIR transaction completed")  
 }
 
@@ -445,4 +443,15 @@ fn enable_feature() {
   }
 
   log!("Paired fob: Feature enable completed")
+}
+
+fn is_paired() -> bool {
+  let mut pair_status: [u32; 1] = [0;1];
+  eeprom_read(&mut pair_status, FOBMEM_FOB_IS_PAIRED);
+  pair_status[0] == 1 
+}
+
+fn set_paired() {
+  let mut pair_status: [u32; 1] = [1];
+  eeprom_write(&mut pair_status, FOBMEM_FOB_IS_PAIRED);
 }
