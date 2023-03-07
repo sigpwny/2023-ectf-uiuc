@@ -228,7 +228,58 @@ fn paired_fob_pairing() {
     log!("Paired fob: PIN is correct");
     uart_writeb_board(MAGIC_PAIR_FIN);
     log!("Paired fob: Sent PAIR_FIN to unpaired fob");
-    // TODO: Write all the features etc for the final message
+
+    let mut secret: [u32; LENW_FOB_SECRET] = [0; LENW_FOB_SECRET];
+    let mut car_id: [u32; LENW_CAR_ID] = [0; LENW_CAR_ID];
+    let mut feature1: [u32; LENW_FEAT] = [0; LENW_FEAT];
+    let mut feature2: [u32; LENW_FEAT] = [0; LENW_FEAT];
+    let mut feature3: [u32; LENW_FEAT] = [0; LENW_FEAT];
+    let mut feature_sig1: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
+    let mut feature_sig2: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
+    let mut feature_sig3: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
+    let mut car_public: [u32; LENW_CAR_PUBLIC] = [0; LENW_CAR_PUBLIC];
+
+    let mut secret_bytes: [u8; LEN_FOB_SECRET] = [0; LEN_FOB_SECRET];
+    let mut car_id_bytes: [u8; LEN_CAR_ID] = [0; LEN_CAR_ID];
+    let mut feature1_bytes: [u8; LEN_FEAT] = [0; LEN_FEAT];
+    let mut feature2_bytes: [u8; LEN_FEAT] = [0; LEN_FEAT];
+    let mut feature3_bytes: [u8; LEN_FEAT] = [0; LEN_FEAT];
+    let mut feature_sig1_bytes: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+    let mut feature_sig2_bytes: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+    let mut feature_sig3_bytes: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+    let mut car_public_bytes: [u8; LEN_CAR_PUBLIC] = [0; LEN_CAR_PUBLIC];
+
+    eeprom_read(&mut secret, FOBMEM_FOB_SECRET);
+    eeprom_read(&mut car_id, FOBMEM_CAR_ID);
+    eeprom_read(&mut feature1, FOBMEM_FEAT_1);
+    eeprom_read(&mut feature2, FOBMEM_FEAT_2);
+    eeprom_read(&mut feature3, FOBMEM_FEAT_3);
+    eeprom_read(&mut feature_sig1, FOBMEM_FEAT_1_SIG);
+    eeprom_read(&mut feature_sig2, FOBMEM_FEAT_2_SIG);
+    eeprom_read(&mut feature_sig3, FOBMEM_FEAT_3_SIG);
+    eeprom_read(&mut car_public, FOBMEM_CAR_PUBLIC);
+
+    words_to_bytes(& secret,&mut secret_bytes );
+    words_to_bytes(& car_id,&mut car_id_bytes);
+    words_to_bytes(& feature1,&mut feature1_bytes);
+    words_to_bytes(& feature2,&mut feature2_bytes);
+    words_to_bytes(& feature3,&mut feature3_bytes);
+    words_to_bytes(& feature_sig1,&mut feature_sig1_bytes);
+    words_to_bytes(& feature_sig2,&mut feature_sig2_bytes);
+    words_to_bytes(& feature_sig3,&mut feature_sig3_bytes);
+    words_to_bytes(& car_public,&mut car_public_bytes);
+
+    uart_write_board(&mut secret_bytes);
+    uart_write_board(&mut car_id_bytes);
+    uart_write_board(&mut feature1_bytes);
+    uart_write_board(&mut feature2_bytes);
+    uart_write_board(&mut feature3_bytes);
+    uart_write_board(&mut feature_sig1_bytes);
+    uart_write_board(&mut feature_sig2_bytes);
+    uart_write_board(&mut feature_sig3_bytes);
+    uart_write_board(&mut car_public_bytes);
+
+
   } else {
     log!("Paired fob: PIN is incorrect");
     uart_writeb_board(MAGIC_PAIR_RST);
@@ -357,7 +408,7 @@ fn enable_feature() {
   log!("Paired fob: ENAB_FEAT feature index: {:x?}", feat_idx);
 
   // 2. check feature index, if it's not valid we reject request
-  if (feat_idx[0] < 0x1 && feat_idx[0] > 0x3) {
+  if feat_idx[0] < 0x1 && feat_idx[0] > 0x3 {
     log!("Paired fob: Received invalid feature index: {:x?}", feat_idx[0]);
     return;
   }
@@ -379,15 +430,15 @@ fn enable_feature() {
   bytes_to_words(&feat_sig, &mut feat_sig_w);
 
   // 6. write the new things to eeprom
-  if (feat_idx[0] == 0x1) {
+  if feat_idx[0] == 0x1 {
     eeprom_write(&feat_num_w, FOBMEM_FEAT_1);
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_1_SIG);
     log!("Paired fob: Feature written to slot 1");
-  } else if (feat_idx[0] == 0x2) {
+  } else if feat_idx[0] == 0x2 {
     eeprom_write(&feat_num_w, FOBMEM_FEAT_2);
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_2_SIG);
     log!("Paired fob: Feature written to slot 2");
-  } else if (feat_idx[0] == 0x3) {
+  } else if feat_idx[0] == 0x3 {
     eeprom_write(&feat_num_w, FOBMEM_FEAT_3);
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_3_SIG);
     log!("Paired fob: Feature written to slot 3");
