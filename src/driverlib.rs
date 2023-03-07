@@ -13,6 +13,10 @@ mod driverwrapper {
         pub(super) fn read_sw_1() -> bool;
         pub(super) fn get_temp_samples(data: *mut u32);
         pub(super) fn sleep_us(us: u32);
+        pub(super) fn start_delay_timer_us(us: u32);
+        pub(super) fn wait_delay_timer();
+        pub(super) fn get_remaining_us_delay_timer() -> u32;
+        pub(super) fn get_tick_timer() -> u64;
     }
 }
 
@@ -115,19 +119,34 @@ pub fn read_sw_1() -> bool {
     unsafe { driverwrapper::read_sw_1() }
 }
 
-/// Waits for one NOP cycle (could take multiple cycles on the board)
-pub fn wait(length: u32) {
-    for _ in 0..length {
-        cortex_m::asm::nop();
-    }
-}
-
 pub fn get_temp_samples(samples: &mut [u32; 8]) {
     unsafe {
         driverwrapper::get_temp_samples(samples.as_mut_ptr())
     }
 }
 
+/// Waits for approximately the number of microseconds provided.
 pub fn sleep_us(us: u32) {
+    assert_ne!(us, 0);
     unsafe { driverwrapper::sleep_us(us) }
+}
+
+/// Sets up the delay timer to trigger after the microseconds provided
+pub fn start_delay_timer_us(us: u32) {
+    unsafe { driverwrapper::start_delay_timer_us(us) }
+}
+
+/// Waits for delay timer to be completed
+pub fn wait_delay_timer() {
+    unsafe { driverwrapper::wait_delay_timer() }
+}
+
+/// Gets remaining time on delay timer
+pub fn get_remaining_us_delay_timer() -> u32 {
+    unsafe { driverwrapper::get_remaining_us_delay_timer() }
+}
+
+/// Returns counter from PIOSC from startup
+pub fn get_tick_timer() -> u64 {
+    unsafe { driverwrapper::get_tick_timer() }
 }

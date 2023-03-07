@@ -184,6 +184,9 @@ fn main() -> ! {
 }
 
 fn paired_fob_pairing() {
+  // Setup delay timer
+  start_delay_timer_us(900_000);
+
   // We just received a PAIR_REQ
   // 1. Read PIN attempt from UART
   let mut pin: [u8; LEN_PIN_ATTEMPT] = [0; LEN_PIN_ATTEMPT];
@@ -209,8 +212,8 @@ fn paired_fob_pairing() {
   bytes_to_words(&computed_pin_hash_b,&mut computed_pin_hash_w);
 
   // 4. Wait 500ms
-  wait(2_000_000); // TODO
   log!("Paired fob: Waiting 500ms for unpaired fob to respond");
+  while get_remaining_us_delay_timer() > 500_000 {}
 
   // 5. Check PAIR_ACK
   loop {
@@ -227,22 +230,28 @@ fn paired_fob_pairing() {
         }
       }
     }
-    // TODO: Add timeout check "Could not find unpaired fob"
+    // Add some headroom to prevent slow ACK from leaking time downstream
+    if get_remaining_us_delay_timer() < 100_000 {
+      log!("Paired fob: PAIR_ACK timeout, could not find unpaired fob");
+      return
+    }
   }
 
   // Compute hash equality
   let mut eeprom_pin_hash: [u32; LENW_PIN_HASH] = [0; LENW_PIN_HASH];
   eeprom_read(&mut eeprom_pin_hash, FOBMEM_PIN_HASH);
   if eeprom_pin_hash == computed_pin_hash_w {
+    wait_delay_timer();
     log!("Paired fob: PIN is correct");
     uart_writeb_board(MAGIC_PAIR_FIN);
     log!("Paired fob: Sent PAIR_FIN to unpaired fob");
     // TODO: Write all the features etc for the final message
   } else {
+    wait_delay_timer();
+    sleep_us(5_000_000);
     log!("Paired fob: PIN is incorrect");
     uart_writeb_board(MAGIC_PAIR_RST);
     log!("Paired fob: Sent PAIR_RST to unpaired fob");
-    wait(2_000_000); // TODO: UART blocking (change to 400ms or time remaining)
     log!("Paired fob: PAIR transaction failed");
     return
   }
