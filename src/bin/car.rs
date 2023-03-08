@@ -7,7 +7,7 @@ use cortex_m_rt::entry;
 use tiva::{
   driverlib::*,
   driverlib::{self},
-  log, setup_board, Board, words_to_bytes, bytes_to_words
+  log, setup_board, Board, words_to_bytes, bytes_to_words, Signer, Verifier
 };
 
 use p256_cortex_m4::SecretKey;

@@ -59,8 +59,7 @@ synchronize with the unpaired fob.
 |             | Magic     | PIN               |
 | ----------- | --------- | ----------------- |
 | **Bytes**   | `\x40`    | `\x??\x??\x??`    |
-| **Offsets** | 0x0 - 0x1 | 0x1 - 0x4         | 
-| **Notes**   |           | Packed big-endian |
+| **Offsets** | 0x0 - 0x1 | 0x1 - 0x4         |
 
 ### PAIR_SYN
 Sent by the paired fob to initialize the unpaired fob for the pairing process. 
@@ -73,8 +72,7 @@ variable, then send a `PAIR_ACK`.
 |             | Magic     | PIN               |
 | ----------- | --------- | ----------------- |
 | **Bytes**   | `\x41`    | `\x??\x??\x??`    |
-| **Offsets** | 0x0 - 0x1 | 0x1 - 0x4         | 
-| **Notes**   |           | Packed big-endian |
+| **Offsets** | 0x0 - 0x1 | 0x1 - 0x4         |
 
 ### PAIR_ACK
 Sent by the unpaired fob to the paired fob after it saves the PIN from 
@@ -92,7 +90,6 @@ fob data to the unpaired fob.
 | ----------- | --------- |
 | **Bytes**   | `\x42`    |
 | **Offsets** | 0x0 - 0x1 |
-| **Notes**   |           |
 
 ### PAIR_FIN
 Sent by the paired fob to the unpaired fob to transfer fob data. The 
@@ -109,17 +106,10 @@ and recreate the EEPROM structure of the paired fob (using its own salt to
 encrypt the car secret). A success message is sent to the host computer once 
 this is completed.
 
-*TODO: Update with correct secret and feature lengths*
-
-> **Warning**  
-> More information needs to be transferred from EEPROM. Refer to diagram and 
-> state documentation.
-
-|             | Magic     | Car Secret            | Feature 1   | Feature 2   | Feature 3   |
-| ----------- | --------- | --------------------- | ----------- | ----------- | ----------- |
-| **Bytes**   | `\x43`    |  \<xxx bytes\>        | \<yy> bytes | \<yy> bytes | \<yy> bytes |
-| **Offsets** | 0x0 - 0x1 | 0x1 - 0x??            | 0x?? - 0x?? | 0x?? - 0x?? | 0x?? - 0x?? |
-| **Notes**   |           | In order (big-endian) | Sent as-is  | Sent as-is  | Sent as-is  |
+|             | Magic     | Fob secret (decrypted) | Car ID         | Feature numbers     | Feature signatures | Car public key |
+| ----------- | --------- | ---------------------- | -------------- | ------------------- | ------------------ | -------------- |
+| **Bytes**   | `\x43`    | 32 bytes               | 32 bit integer | 3 x 32 bit integers | 3 x 64 bytes       | 64 bytes       |
+| **Offsets** | 0x0 - 0x1 | 0x01 - 0x21            | 0x21 - 0x25    | 0x25 - 0x31         | 0x31 - 0xF1        | 0x0F1 - 0x131  |
 
 ### PAIR_RST
 If received, the fob will exit the current transaction (reset). The fob is not 
@@ -129,7 +119,6 @@ guaranteed to be listening for a reset.
 | ----------- | --------- |
 | **Bytes**   | `\x44`    |
 | **Offsets** | 0x0 - 0x1 |
-| **Notes**   |           |
 
 ## Packaging Features
 
@@ -152,11 +141,10 @@ Sent from the host computer to a paired fob. Only paired fobs will act on
 this message. The fob will not make any attempt to validate the feature, 
 except that a valid feature index is provided (1, 2, or 3).
 
-|             | Magic     | Feature index        | Feature number | Feature signature |
-| ----------- | --------- | -------------------- | -------------- | ----------------- |
-| **Bytes**   | `\x50`    | `\x01`,`\x02`,`\x03` | `\x??`         |                   |
-| **Offsets** | 0x0 - 0x1 | 0x1 - 0x2            | 0x2 - 0x3      | 0x2 - 0x??        |
-| **Notes**   |           |                      |                |                   |
+|             | Magic     | Feature index             | Feature number | Feature signature |
+| ----------- | --------- | ------------------------- | -------------- | ----------------- |
+| **Bytes**   | `\x50`    | `\x01`, `\x02`, or `\x03` | 32 bit integer | 64 bytes          |
+| **Offsets** | 0x0 - 0x1 | 0x1 - 0x2                 | 0x2 - 0x6      | 0x06 - 0x46       |
 
 ## Unlocking Car
 
@@ -192,7 +180,12 @@ sequenceDiagram
 ```
 
 ### UNLOCK_REQ
-Sent by the fob to the car when SW1 is pressed, requesting an unlock.
+Sent by the fob to the car when SW1 on the fob is pressed, requesting an unlock.
+
+|             | Magic     |
+| ----------- | --------- |
+| **Bytes**   | `\x60`    |
+| **Offsets** | 0x0 - 0x1 |
 
 ### UNLOCK_CHAL
 Sends a challenge from the car to the fob in order to authenticate. The 
@@ -201,22 +194,43 @@ signature of the nonce using  the car's secret key. In order to complete the
 challenge, the fob must add 1 to the nonce and send the result in an 
 `UNLOCK_RESP` to the car.
 
+|             | Magic     | Nonce             | Nonce signature |
+| ----------- | --------- | ----------------- | --------------- |
+| **Bytes**   | `\x61`    | 64 bit integer    | 64 bytes        |
+| **Offsets** | 0x0 - 0x1 | 0x1 - 0x9         | 0x09 - 0x49     |
+
 ### UNLOCK_RESP
 Send by the fob to the car. The nonce value from `UNLOCK_CHAL` is incremented 
 and sent, along with a signature of the modified nonce using the fob's secret
 key. The fob should only send a response after validating the signature 
 included in `UNLOCK_CHAL`.
 
+|             | Magic     | Nonce + 1         | Nonce + 1 signature |
+| ----------- | --------- | ----------------- | ------------------- |
+| **Bytes**   | `\x62`    | 64 bit integer    | 64 bytes            |
+| **Offsets** | 0x0 - 0x1 | 0x1 - 0x9         | 0x09 - 0x49         |
 
 ### UNLOCK_GOOD
 If the challenge was solved (and the signature from `UNLOCK_RESP` is valid), 
 then the car should now be unlocked. This message is sent from the car asking 
 the fob for its stored features.
 
+|             | Magic     |
+| ----------- | --------- |
+| **Bytes**   | `\x63`    |
+| **Offsets** | 0x0 - 0x1 |
+
 ### UNLOCK_FEAT
 This is sent from the fob to the car and contains the feature numbers as well 
 as their respective signatures. The car will validate the provided features 
-using the signatures.
+using the signatures. Feature numbers and feature signatures are sent in 
+order (1, 2, 3). The fob will send data stored at feature EEPROM regardless 
+of whether there is an enabled feature.
+
+|             | Magic     | Feature numbers     | Feature signatures |
+| ----------- | --------- | ------------------- | ------------------ |
+| **Bytes**   | `\x64`    | 3 x 32 bit integers | 3 x 64 bytes       |
+| **Offsets** | 0x0 - 0x1 | 0x1 - 0xD           | 0x0D - 0xCD        |
 
 > **Warning**  
 > Car MUST include feature number and car ID combined/concatenated to validate 
