@@ -8,14 +8,21 @@
 
 #include "driverlib/wrapper.h"
 
+#include "driverlib/adc.c"
 #include "driverlib/eeprom.c"
 #include "driverlib/gpio.c"
 #include "driverlib/pin_map.h"
 #include "driverlib/uart.c"
 #include "driverlib/sysctl.c"
+#include "driverlib/timer.c"
+
+#include "inc/tm4c123gh6pm.h"
+#include "sysctl.h"
 
 #define HOST_UART ((uint32_t)UART0_BASE)
 #define BOARD_UART ((uint32_t)UART1_BASE)
+
+#define TEMP_SAMPLES 8
 
 /**
  * @brief Initialize the UART interfaces.
@@ -74,7 +81,48 @@ static void setup_board_link(void) {
   }
 }
 
+// https://gist.github.com/donghee/886adc391ab984756edb
+void adc_init(void) {
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+  while (!SysCtlPeripheralReady(SYSCTL_PERIPH_ADC0)) {}
+  // Disable oversample to increase noise
+  ADCHardwareOversampleConfigure(ADC0_BASE, 0);
+  ADCSequenceDisable(ADC0_BASE, 0);
+  ADCSequenceConfigure(ADC0_BASE, 0, ADC_TRIGGER_PROCESSOR, 0);
+  // Sample TEMP_SAMPLES samples and interrupt on last sample
+  for (int i = 0; i < TEMP_SAMPLES - 1; ++i) {
+    ADCSequenceStepConfigure(ADC0_BASE, 0, i, ADC_CTL_TS | ADC_CTL_SHOLD_4);
+  }
+  ADCSequenceStepConfigure(ADC0_BASE, 0, TEMP_SAMPLES - 1, ADC_CTL_TS | ADC_CTL_IE | ADC_CTL_END | ADC_CTL_SHOLD_4);
+  ADCSequenceEnable(ADC0_BASE, 0);
+}
+
+void delay_timer_init(void) {
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0);
+  while (!SysCtlPeripheralReady(SYSCTL_PERIPH_TIMER0)) {}
+  TimerConfigure(TIMER0_BASE, TIMER_CFG_ONE_SHOT);
+  TimerClockSourceSet(TIMER0_BASE, TIMER_CLOCK_SYSTEM);
+  TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+}
+
+void tick_timer_init(void) {
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_WTIMER0);
+  while (!SysCtlPeripheralReady(SYSCTL_PERIPH_WTIMER0)) {}
+  TimerConfigure(WTIMER0_BASE, TIMER_CFG_PERIODIC_UP);
+  TimerClockSourceSet(WTIMER0_BASE, TIMER_CLOCK_PIOSC);
+  TimerEnable(WTIMER0_BASE, TIMER_A);
+}
+
 void init_system(void) {
+  // Initialize the ADC
+  adc_init();
+
+  // Initialize the delay timer
+  delay_timer_init();
+
+  // Initialize the tick timer
+  tick_timer_init();
+
   // Ensure EEPROM peripheral is enabled
   SysCtlPeripheralEnable(SYSCTL_PERIPH_EEPROM0);
   EEPROMInit();
@@ -98,4 +146,38 @@ void eeprom_write(uint32_t *data, uint32_t address, uint32_t count) { EEPROMProg
 
 bool read_sw_1(void) {
   return GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4) == 0;
+}
+
+void get_temp_samples(uint32_t* samples) {
+  ADCProcessorTrigger(ADC0_BASE, 0);
+  while (!ADCIntStatus(ADC0_BASE, 0, false)) {}
+  ADCIntClear(ADC0_BASE, 0);
+  ADCSequenceDataGet(ADC0_BASE, 0, samples);
+}
+
+void sleep_us(uint32_t us) {
+  uint32_t cycles = ((uint64_t)(us) * (uint64_t)(SysCtlClockGet())) / 3 / 1e6;
+  SysCtlDelay(cycles);
+}
+
+// begin counting the delay timer
+void start_delay_timer_us(uint32_t us) {
+  uint32_t cycles = ((uint64_t)(us) * (uint64_t)(SysCtlClockGet())) / 1e6;
+  TimerLoadSet(TIMER0_BASE, TIMER_A, cycles);
+  TimerEnable(TIMER0_BASE, TIMER_A);
+}
+
+// wait for timeout
+void wait_delay_timer(void) {
+  while(!TimerIntStatus(TIMER0_BASE, false)) {}
+  TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+}
+
+// get remaining time
+uint32_t get_remaining_us_delay_timer(void) {
+  return ((uint64_t)(TimerValueGet(TIMER0_BASE, TIMER_A)) * 1e6) / ((uint64_t)(SysCtlClockGet()));
+}
+
+uint64_t get_tick_timer(void) {
+  return TimerValueGet64(WTIMER0_BASE);
 }
