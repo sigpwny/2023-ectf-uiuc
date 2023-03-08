@@ -9,10 +9,10 @@ def 256_gen()
 	file.write(bytes("f", 'utf-8') * num_bytes)
 	address = {"FOBMEM_CAR_PUBLIC":"0x300"}
 	data = key_dict[priv_key]
-    offset = address["FOBMEM_CAR_PUBLIC"]
+    	offset = address["FOBMEM_CAR_PUBLIC"]
 	file.seek(int(offset, base=16)) 
-    file.write(data)
-    file.close()
+	file.write(data)
+	file.close()
     
 	return key_dict
 
