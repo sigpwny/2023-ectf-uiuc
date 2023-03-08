@@ -1,16 +1,19 @@
 #![no_std]
 #![no_main]
 
-use panic_halt as _;
 use cortex_m_rt::entry;
+use embedded_hal::digital::v2::OutputPin;
+
 
 use tiva::{
   driverlib::*,
   driverlib::{self},
-  log, setup_board, Board, words_to_bytes, bytes_to_words, Signer, Verifier
+  log, setup_board, Board, words_to_bytes, bytes_to_words, Signer, Verifier, sha256
 };
 
 use p256_cortex_m4::SecretKey;
+use rand_chacha::rand_core::SeedableRng;
+
 
 /**
  * EEPROM state addresses (specifically for car)
@@ -66,15 +69,19 @@ const MAGIC_UNLOCK_CHAL:      u8 = 0x61;
 const MAGIC_UNLOCK_RESP:      u8 = 0x62;
 const MAGIC_UNLOCK_GOOD:      u8 = 0x63;
 const MAGIC_UNLOCK_FEAT:      u8 = 0x64;
+const MAGIC_UNLOCK_RST:       u8 = 0x69;
 
 /**
  * Message lengths
  */
 const MSGLEN_UNLOCK_CHAL:     usize = LEN_NONCE + LEN_NONCE_SIG;
+const MSGLEN_UNLOCK_RESP:     usize = LEN_NONCE + LEN_NONCE_SIG;
 const MSGLEN_UNLOCK_FEAT:     usize = (LEN_FEAT * 3) + (LEN_FEAT_SIG * 3);
 
 #[entry]
 fn main() -> ! {
+  let mut board: Board = setup_board();
+
   let mut timer: u64 = 0;
   loop {
     timer += 1;
@@ -82,12 +89,10 @@ fn main() -> ! {
       let data: u8 = driverlib::uart_readb_board();
       match data {
         MAGIC_UNLOCK_REQ => {
-          if is_paired {
-            log!("Paired fob: Received UNLOCK_REQ");
-            board.led_blue.set_high().unwrap();
-            unlock_start();
-            board.led_blue.set_low().unwrap();
-          }
+          log!("Paired fob: Received UNLOCK_REQ");
+          board.led_blue.set_high().unwrap();
+          unlock_start();
+          board.led_blue.set_low().unwrap();
         }
         // Add other magic bytes here
         _ => {
@@ -105,8 +110,8 @@ fn unlock_start() {
   let mut rng = rand_chacha::ChaChaRng::from_seed([0; 32]);
 
   // Get car secret key
-  let mut car_secret_words: [u8; LENW_CAR_SECRET] = [0; LENW_CAR_SECRET];
-  eeprom_read(CARMEM_CAR_SECRET, &mut car_secret_words);
+  let mut car_secret_words: [u32; LENW_CAR_SECRET] = [0; LENW_CAR_SECRET];
+  eeprom_read(&mut car_secret_words, CARMEM_CAR_SECRET);
   let mut car_secret_bytes: [u8; LEN_CAR_SECRET] = [0; LEN_CAR_SECRET];
   words_to_bytes(&car_secret_words, &car_secret_bytes);
   let car_secret = SecretKey::from_bytes(&car_secret_bytes).unwrap();
@@ -115,24 +120,56 @@ fn unlock_start() {
   let car_signed_nonce = car_secret.sign(&car_nonce_bytes, rng).to_untagged_bytes();
 
 	// send unlock chal and nonce to fob
-  let mut unlock_chal_msg: [u8; 1 + MSGLEN_UNLOCK_CHAL] = [MAGIC_UNLOCK_CHAL, car_nonce_bytes, car_signed_nonce];
+  let mut unlock_chal_msg: [u8; 1 + MSGLEN_UNLOCK_CHAL] = [MAGIC_UNLOCK_CHAL; 1 + MSGLEN_UNLOCK_CHAL];
+  unlock_chal_msg[1..].copy_from_slice(&car_nonce_bytes);
+  unlock_chal_msg[1 + LEN_NONCE..].copy_from_slice(&car_signed_nonce);
   // unlock_chal_msg[1..].copy_from_slice(&signed_nonce); // copy starting at index 1, leaving space of 
   uart_write_board(&unlock_chal_msg);
   log!("Paired fob: Sent unlock_chal_msg to paired fob");
 
 	// receive response/check signed nonce
+  // TODO: when you receive fob nonce, ignore it (we check our nonce + 1 plus their signature)
+  car_nonce += 1;
+  // check fob signature against car_nonce, NOT fob_nonce received from UART
   
+  if uart_avail_board() {
+    let unlock_msg: u8 = uart_readb_board();
+    if unlock_msg == MAGIC_UNLOCK_RESP {
+      log!("Fob: Received UNLOCK_RESP");
+      let mut unlock_resp_msg: [u8; MSGLEN_UNLOCK_RESP] = [0; MSGLEN_UNLOCK_RESP];
+      uart_read_board(&mut unlock_resp_msg);
+      let fob_signed_nonce: [u8; LEN_NONCE_SIG] = [0; LEN_NONCE_SIG];
+      unlock_resp_msg[1 + LEN_NONCE..].copy_from_slice(&fob_signed_nonce);
+      log!("Car: received Nonce Signature value: {:x?}", &fob_signed_nonce);
 
-	// send unlock result (success/fail)
+      let car_nonce_bytes = car_nonce.to_be_bytes(); 
 
-	// receive the features from fob
+      // Use the car secret key to sign the car nonce (and compare it to the fob signature)
+      let car_signed_nonce = car_secret.sign(&car_nonce_bytes, rng).to_untagged_bytes();
 
+      // checking nonce signatures from fob and car
+      if car_signed_nonce == fob_signed_nonce {
+        // yay unlock ze car
+        let mut unlock_good: [u8; 1] = [MAGIC_UNLOCK_GOOD]; 
+        // send unlock result (success)
+        uart_write_board(&unlock_good);
+        log!("Fob: Sent UNLOCK_GOOD to fob");
+      }
+      else {
+        // no unlock :(
+          let mut unlock_bad: [u8; 1] = [MAGIC_UNLOCK_RST]; 
+          // send unlock result (fail)
+          uart_write_board(&unlock_bad);
+          log!("Fob: Sent UNLOCK_RST to fob");
+      }
+    }
+  }
 }
 
 fn unlock_request_features() {
   // send UNLOCK_GOOD, signaling that 
   // we are ready to receive a feature
-  let mut unlock_success: [u8] = [MAGIC_UNLOCK_GOOD]; 
+  let mut unlock_success: [u8; 1] = [MAGIC_UNLOCK_GOOD]; 
   uart_write_board(&unlock_success);
   log!("Car: Sent UNLOCK_GOOD to fob");
 
@@ -166,7 +203,7 @@ fn unlock_request_features() {
   let mut man_public_eeprom: [u32; LENW_MAN_PUBLIC] = [0; LENW_MAN_PUBLIC];
   eeprom_read(&mut man_public_eeprom, CARMEM_MAN_PUBLIC);
   let mut man_public_bytes: [u8; LEN_MAN_PUBLIC] = [0; LEN_MAN_PUBLIC];
-  words_to_bytes(&man_public_eeprom, &man_public_bytes);
+  words_to_bytes(&man_public_eeprom, &mut man_public_bytes);
   
   // convert public key from eeprom to bytes
   use p256_cortex_m4::PublicKey;
