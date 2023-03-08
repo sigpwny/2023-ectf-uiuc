@@ -1,0 +1,19 @@
+from fastecdsa import keys, curve
+def 256_gen()
+	key_dict = {}
+	priv_key, pub_key = keys.gen_keypair(curve.P256)
+	key_dict[priv_key] = pub_key
+
+	file = open('EEPROM', "r+b")
+	num_bytes = 2048
+	file.write(bytes("f", 'utf-8') * num_bytes)
+	address = {"FOBMEM_CAR_PUBLIC":"0x300"}
+	data = key_dict[priv_key]
+    offset = address["FOBMEM_CAR_PUBLIC"]
+	file.seek(int(offset, base=16)) 
+    file.write(data)
+    file.close()
+    
+	return key_dict
+
+256_gen()
