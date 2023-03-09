@@ -6,7 +6,8 @@ use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
   driverlib::*,
-  log, setup_board, Board, words_to_bytes, Signer, Verifier, get_combined_entropy, update_entropy_with_timer
+  driverlib::{self},
+  log, setup_board, Board, words_to_bytes, bytes_to_words, Signer, Verifier, get_combined_entropy, update_entropy_with_timer
 };
 
 use p256_cortex_m4::{SecretKey, Signature, PublicKey};
@@ -123,8 +124,10 @@ fn unlock_start(entropy: &[u8; 32]) {
 
 	// Send unlock chal and nonce to fob
   let mut unlock_chal_msg: [u8; 1 + MSGLEN_UNLOCK_CHAL] = [MAGIC_UNLOCK_CHAL; 1 + MSGLEN_UNLOCK_CHAL];
-  unlock_chal_msg[1..].copy_from_slice(&car_nonce_b);
-  unlock_chal_msg[1 + LEN_NONCE..].copy_from_slice(&car_signed_nonce); 
+  unlock_chal_msg[1..1 + LEN_NONCE].copy_from_slice(&car_nonce_b);
+  unlock_chal_msg[1 + LEN_NONCE..].copy_from_slice(&car_signed_nonce);
+  // log!("Car: Sending nonce: {:x?}", car_nonce_b);
+  // log!("Car: Sending nonce signature: {:x?}", car_signed_nonce);
   uart_write_board(&unlock_chal_msg);
   log!("Car: Sent UNLOCK_CHAL to paired fob");
 
@@ -133,7 +136,6 @@ fn unlock_start(entropy: &[u8; 32]) {
       let magic: u8 = uart_readb_board();
       match magic {
         MAGIC_UNLOCK_RESP => {
-          log!("Car: Received UNLOCK_RESP");
           break;
         }
         _ => {
@@ -147,11 +149,12 @@ fn unlock_start(entropy: &[u8; 32]) {
   // Get UNLOCK_RESP data
   let mut unlock_resp_msg: [u8; MSGLEN_UNLOCK_RESP] = [0; MSGLEN_UNLOCK_RESP];
   uart_read_board(&mut unlock_resp_msg);
+  log!("Car: Received UNLOCK_RESP");
 
   // Read nonce signature from UNLOCK_RESP message
-  let fob_signed_nonce: [u8; LEN_NONCE_SIG] = [0; LEN_NONCE_SIG];
-  unlock_resp_msg[LEN_NONCE..].copy_from_slice(&fob_signed_nonce);
-  log!("Car: Received nonce signature value: {:x?}", &fob_signed_nonce);
+  let mut fob_signed_nonce: [u8; LEN_NONCE_SIG] = [0; LEN_NONCE_SIG];
+  fob_signed_nonce.copy_from_slice(&unlock_resp_msg[LEN_NONCE..]);
+  // log!("Car: Received nonce signature value: {:x?}", &fob_signed_nonce);
 
   // Check fob signature against car_nonce, NOT fob_nonce received from UART
   car_nonce += 1;
@@ -188,27 +191,28 @@ fn unlock_start(entropy: &[u8; 32]) {
 
 fn unlock_request_features() {
   // Send UNLOCK_GOOD, signaling that we want to receive features
+  log!("Car: Sending UNLOCK_GOOD to fob");
   uart_writeb_board(MAGIC_UNLOCK_GOOD);
-  log!("Car: Sent UNLOCK_GOOD to fob");
 
-  // Wait for UNLOCK_FEAT from the fob
-  loop {
-    if uart_avail_board() {
-      let feat_msg: u8 = uart_readb_board();
-      if feat_msg == MAGIC_UNLOCK_FEAT {
-        log!("Car: Received UNLOCK_FEAT");
-        break;
-      }
-    }
-  }
-
-  // Read UNLOCK_FEAT data
   let mut feature1_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
   let mut feature2_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
   let mut feature3_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
   let mut feature_sig1_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
   let mut feature_sig2_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
   let mut feature_sig3_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+
+  // Wait for UNLOCK_FEAT from the fob
+  loop {
+    if uart_avail_board() {
+      let feat_msg: u8 = uart_readb_board();
+      if feat_msg == MAGIC_UNLOCK_FEAT {
+        // log!("Car: Received UNLOCK_FEAT");
+        break;
+      }
+    }
+  }
+
+  // Read UNLOCK_FEAT data
   uart_read_board(&mut feature1_b);
   uart_read_board(&mut feature2_b);
   uart_read_board(&mut feature3_b);
