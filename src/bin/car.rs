@@ -104,6 +104,9 @@ fn main() -> ! {
 }
 
 fn unlock_start(entropy: &[u8; 32]) {
+  // Start timeout timer for 500ms, need time to rx from fob
+  start_delay_timer_us(500_000);
+
   // Initialize RNG
   let mut rng = rand_chacha::ChaChaRng::from_seed(*entropy);
 
@@ -121,7 +124,7 @@ fn unlock_start(entropy: &[u8; 32]) {
   // Use the car secret key to sign the nonce
   let car_signed_nonce: [u8; LEN_NONCE_SIG] = car_secret.sign(&car_nonce_b, rng).to_untagged_bytes();
 
-	// Send unlock chal and nonce to fob
+  // Send unlock chal and nonce to fob
   let mut unlock_chal_msg: [u8; 1 + MSGLEN_UNLOCK_CHAL] = [MAGIC_UNLOCK_CHAL; 1 + MSGLEN_UNLOCK_CHAL];
   unlock_chal_msg[1..].copy_from_slice(&car_nonce_b);
   unlock_chal_msg[1 + LEN_NONCE..].copy_from_slice(&car_signed_nonce); 
@@ -153,7 +156,7 @@ fn unlock_start(entropy: &[u8; 32]) {
   unlock_resp_msg[LEN_NONCE..].copy_from_slice(&fob_signed_nonce);
   log!("Car: Received nonce signature value: {:x?}", &fob_signed_nonce);
 
-  // Check fob signature against car_nonce, NOT fob_nonce received from UART
+  // We check fob signature against car_nonce, NOT fob_nonce received from UART
   car_nonce += 1;
   let fob_nonce_b: [u8; 8] = car_nonce.to_be_bytes();
 
@@ -169,6 +172,8 @@ fn unlock_start(entropy: &[u8; 32]) {
   // Verify the signature with the message and public key
   let fob_nonce_verified: bool = fob_pubkey.verify(&fob_nonce_b, &fob_nonce_sig);
 
+  wait_delay_timer();
+
   if fob_nonce_verified {
     // yay unlock ze car
     log!("Car: Unlocked!");
@@ -182,7 +187,7 @@ fn unlock_start(entropy: &[u8; 32]) {
   } else {
     // boo, bad signature
     log!("Car: Bad signature, not unlocking");
-    // TODO: sleep for 4 seconds
+    sleep_us(4_500_000);
   }
 }
 
