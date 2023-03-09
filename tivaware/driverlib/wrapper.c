@@ -185,8 +185,6 @@ void start_delay_timer_us(uint32_t us) {
   uint32_t cycles = ((uint64_t)(us) * (uint64_t)(SysCtlClockGet())) / 1e6;
   TimerLoadSet(TIMER0_BASE, TIMER_A, cycles);
   TimerEnable(TIMER0_BASE, TIMER_A);
-  // Tick a bit so we don't have the current equal to the load value on return
-  SysCtlDelay(20);
 }
 
 /**
