@@ -1,18 +1,10 @@
 # PwnyPARED Protocol
 
-> **Warning**  
-> This protocol is still under active development and changes can be made at 
-any point.
-
 The PwnyPARED protocol dictates UART communication for SIGPwny's 
-implementation of a car and keyfob system for eCTF 2023.
+implementation of a car and keyfob system for MITRE's eCTF 2023.
 
 > **Note**  
 > "TTT" refers to "total transaction time."
-
-## Building (Host Tools)
-
-*TODO*
 
 ## Pairing Fobs
 
@@ -30,7 +22,7 @@ sequenceDiagram
     Paired Fob -x Host Computer: "Paired fob: Could not find unpaired fob"
   end
   Unpaired Fob ->> Paired Fob: PAIR_ACK
-  Note over Host Computer, Unpaired Fob: Minimum 0.5s TTT elapsed
+  Note over Host Computer, Unpaired Fob: Minimum 0.8s TTT elapsed
   alt PIN incorrect
     Paired Fob -x Host Computer: "Paired fob: PIN is incorrect"
     Paired Fob -x Unpaired Fob: PAIR_RST
@@ -78,7 +70,7 @@ variable, then send a `PAIR_ACK`.
 Sent by the unpaired fob to the paired fob after it saves the PIN from 
 `PAIR_SYN`. The paired fob will start decrypting the encrypted car secret with 
 the provided PIN and stored salt, regardless if the PIN is correct or not. 
-After this, if 500ms TTT has not yet elapsed, the paired fob will wait until 
+After this, if 800ms TTT has not yet elapsed, the paired fob will wait until 
 then.
 
 After this delay, if the PIN is incorrect, it will send an error to the host 
@@ -119,10 +111,6 @@ guaranteed to be listening for a reset.
 | ----------- | --------- |
 | **Bytes**   | `\x44`    |
 | **Offsets** | 0x0 - 0x1 |
-
-## Packaging Features
-
-*TODO*
 
 ## Enabling Features
 

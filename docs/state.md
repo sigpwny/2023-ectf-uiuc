@@ -1,37 +1,46 @@
 # State
 
-## Secrets and Variables
+State used in our implementation of PwnyPARED. All variables are 
+unsigned unless otherwise specified.
 
-All are unsigned unless otherwise specified
+## Secrets
+### Fob keypair
+- `FOB_SECRET` - 32 bytes, P-256 private key
+- `FOB_PUBLIC` - 64 bytes, P-256 public key
+### Car keypair
+- `CAR_SECRET` - 32 bytes, P-256 private key
+- `CAR_PUBLIC` - 64 bytes, P-256 public key
+### Manufacturer keypair
+- `MAN_SECRET` - 32 bytes, P-256 private key
+- `MAN_PUBLIC` - 64 bytes, P-256 public key
 
-- Fob keypair
-  - `FOB_SECRET` - 256 bits (32 bytes), P-256 private key
-  - `FOB_PUBLIC` - 512 bits (64 bytes), P-256 public key
-- Car keypair
-  - `CAR_SECRET` - 256 bits (32 bytes), P-256 private key
-  - `CAR_PUBLIC` - 512 bits (64 bytes), P-256 public key
-- Manufacturer keypair
-  - `MAN_SECRET` - 256 bits (32 bytes), P-256 private key
-  - `MAN_PUBLIC` - 512 bits (64 bytes), P-256 public key
+## Variables
+### General state
+- `CAR_ID` - 4 bytes
+- `FEAT_1` - 4 bytes
+- `FEAT_2` - 4 bytes
+- `FEAT_3` - 4 bytes
+- `FEAT_1_SIG` - 64 bytes, P-256 signature from manufacturer
+- `FEAT_2_SIG` - 64 bytes, P-256 signature from manufacturer
+- `FEAT_3_SIG` - 64 bytes, P-256 signature from manufacturer
 
-Data:
-- `CAR_ID` - 8 bits (1 byte), stored as 32 bits (4 bytes)
-- `FEAT_1` - 8 bits (1 byte), stored as 32 bits (4 bytes)
-- `FEAT_2` - 8 bits (1 byte), stored as 32 bits (4 bytes)
-- `FEAT_3` - 8 bits (1 byte), stored as 32 bits (4 bytes)
-- `FEAT_1_SIG` - 512 bits (64 bytes), P-256 signature from factory
-- `FEAT_2_SIG` - 512 bits (64 bytes), P-256 signature from factory
-- `FEAT_3_SIG` - 512 bits (64 bytes), P-256 signature from factory
+### Pairing-specific state
+- `PIN` - 3 bytes, PIN entered by user (padded to 4 bytes with a null byte for 
+hashes)
+- `FOB_SALT` - 12 bytes, a secret which is unique to each fob
+  - Used as a salt to validate password against stored hash and also used to 
+  decrypt `FOB_SECRET_ENC`
+- `FOB_SECRET_ENC` - 32 bytes, copy of `FOB_SECRET` XOR'd with SHA256 hash of 
+`PIN` and `FOB_SALT`
+- `PIN_HASH` - 32 bytes, SHA256 hash of `FOB_SALT` and `PIN` used to validate 
+PIN
+- `FOB_IS_PAIRED` - 4 bytes, 1 if fob is paired, 0 if unpaired
 
-Pairing-specific state:
-- `FOB_SECRET_ENC` - 256 bits (32 bytes) copy of `FOB_SECRET`, ~~AES-128-CBC encrypted data~~ (most likely just XOR'd with PIN)
-- `FOB_SALT` - 96 bits (12 bytes)
-  - Combined with unhashed, big-endian PIN (3 bytes and 1 byte padding): `FOB_SALT + (0x00 + PIN) => 16 bytes`
-  - Used as a salt to validate password against stored hash and also used to decrypt `FOB_SECRET_ENC`
-- `PIN_HASH` - ???
-- `FOB_IS_PAIRED` - 32 bits (4 bytes)
+### Unlocking-specific state
+- `NONCE` - 8 bytes, random number used to prevent replay attacks
+- `NONCE_SIG` - 64 bytes, P-256 signature of `NONCE` from car or fob
 
-## EEPOM State
+## EEPOM
 
 ### Car EEPROM
 ```
