@@ -85,6 +85,7 @@ pub fn get_combined_entropy() -> [u8; 32] {
 pub fn update_entropy_with_timer(entropy: &mut [u8; 32]) {
     // Initialize RNG using entropy as seed
     let mut rng = ChaChaRng::from_seed(*entropy);
+    // "I used the entropy to write the entropy"
     rng.fill_bytes(entropy);
     let hash: [u8; 32] = sha256(&get_tick_timer().to_be_bytes());
     for i in 0..32 {

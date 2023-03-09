@@ -10,7 +10,7 @@ use tiva::{
   log, setup_board, Board, words_to_bytes, bytes_to_words, Signer, Verifier, sha256
 };
 
-use p256_cortex_m4::SecretKey;
+use p256_cortex_m4::{SecretKey, Signature, PublicKey};
 use rand_chacha::rand_core::SeedableRng;
 
 /**
@@ -442,68 +442,100 @@ fn unpaired_fob_pairing() {
   log!("Unpaired fob: PAIR transaction completed")  
 }
 
+/// Handle SW1 button press to unlock car
 fn request_unlock() {
+  // This does not need to be random since it is used for signature padding
+  let rng = rand_chacha::ChaChaRng::from_seed([0; 32]);
 
-  let mut rng = rand_chacha::ChaChaRng::from_seed([0; 32]);
-
-  // Send unlock request to car
-  let mut unlock_request: [u8; 1] = [MAGIC_UNLOCK_REQ]; 
-  uart_write_board(&unlock_request);
+  uart_writeb_board(MAGIC_UNLOCK_REQ);
   log!("Fob: Sent UNLOCK_REQ to fob");
   
-  // receive unlock challenge from car
+  // Receive unlock challenge from car
   loop {
-    // *timer += 1;
     if uart_avail_board() {
-      let unlock_msg: u8 = uart_readb_board();
-      if unlock_msg == MAGIC_UNLOCK_CHAL {
-        log!("Fob: Received UNLOCK_CHAL");
-        let mut unlock_chal_msg: [u8; MSGLEN_UNLOCK_CHAL] = [0; MSGLEN_UNLOCK_CHAL];
-        uart_read_board(&mut unlock_chal_msg);
-        let car_nonce: [u8; LEN_NONCE] = [0; LEN_NONCE];
-        unlock_chal_msg[1..].copy_from_slice(&car_nonce);
-        log!("Fob: received nonce value: {:x?}", car_nonce);
-        // turn car_nonce into int
-        let mut car_nonce_int: u64 = u64::from_be_bytes(car_nonce);
-        // add 1 to the nonce
-        car_nonce_int += 1;
-        // convert back to bytes
-        let fob_nonce_bytes = car_nonce_int.to_be_bytes(); 
-        // sign nonce
-        log!("Fob: Signing nonce + 1");
-        let mut fob_secret_words: [u32; LENW_FOB_SECRET] = [0; LENW_FOB_SECRET];
-        eeprom_read(&mut fob_secret_words, FOBMEM_FOB_SECRET);
-        let mut fob_secret_bytes: [u8; LEN_FOB_SECRET] = [0; LEN_FOB_SECRET];
-        words_to_bytes(&fob_secret_words, &mut fob_secret_bytes);
-        let fob_secret = SecretKey::from_bytes(&fob_secret_bytes).unwrap();
-      
-        // Use the fob secret key to sign the nonce
-        let fob_signed_nonce = fob_secret.sign(&fob_nonce_bytes, rng).to_untagged_bytes();
-        // convert back to a nice lil message
-        let mut fob_signed_msg: [u8; 1 + MSGLEN_UNLOCK_RESP] = [MAGIC_UNLOCK_RESP; 1 + MSGLEN_UNLOCK_RESP];
-        fob_signed_msg[1..].copy_from_slice(&fob_signed_nonce);
-        fob_signed_msg[1 + LEN_NONCE..].copy_from_slice(&fob_nonce_bytes);
-        // send result back to car (UNLOCK_RESP)
-        uart_write_board(&fob_signed_msg); 
-        log!("Fob: Sent signed nonce to car");
-
-        break;
-      }
-    }
-
-    loop {
-      // read car unlock result (success/fail)
-      if uart_avail_board() {
-        let result_msg: u8 = uart_readb_board();
-        if result_msg == MAGIC_UNLOCK_GOOD {
-          log!("fob: Car unlocked! :)");
-          // send_features(), send installed features (feature numbers, feature signatures)
+      let magic: u8 = uart_readb_board();
+      match magic {
+        MAGIC_UNLOCK_CHAL => {
+          log!("Fob: Received UNLOCK_CHAL from car");
           break;
         }
+        _ => {
+          log!("Fob: Received unexpected message from car");
+          // TODO: timeout
+        }
       }
-      log!("fob: Car not unlocked :(");
     }
   }
+
+  let mut unlock_chal_msg: [u8; MSGLEN_UNLOCK_CHAL] = [0; MSGLEN_UNLOCK_CHAL];
+  uart_read_board(&mut unlock_chal_msg);
+
+  // Read nonce from message
+  let car_nonce_b: [u8; LEN_NONCE] = [0; LEN_NONCE];
+  unlock_chal_msg[..LEN_NONCE].copy_from_slice(&car_nonce_b);
+  log!("Fob: received nonce value: {:x?}", car_nonce_b);
+
+  // Increment nonce to sign
+  let mut car_nonce: u64 = u64::from_be_bytes(car_nonce_b);
+  car_nonce += 1;
+  let fob_nonce_b: [u8; 8] = car_nonce.to_be_bytes();
+
+  // Read fob secret key from EEPROM
+  let mut fob_secret_w: [u32; LENW_FOB_SECRET] = [0; LENW_FOB_SECRET];
+  let mut fob_secret_b: [u8; LEN_FOB_SECRET] = [0; LEN_FOB_SECRET];
+  eeprom_read(&mut fob_secret_w, FOBMEM_FOB_SECRET);
+  words_to_bytes(&fob_secret_w, &mut fob_secret_b);
+  let fob_secret = SecretKey::from_bytes(&fob_secret_b).unwrap();
+      
+  // Use the fob secret key to sign the nonce
+  let fob_signed_nonce: [u8; 64] = fob_secret.sign(&fob_nonce_b, rng).to_untagged_bytes();
+  
+  // Send signed nonce to car
+  let mut fob_signed_msg: [u8; 1 + MSGLEN_UNLOCK_RESP] = [MAGIC_UNLOCK_RESP; 1 + MSGLEN_UNLOCK_RESP];
+  fob_signed_msg[1..].copy_from_slice(&fob_nonce_b);
+  fob_signed_msg[1 + LEN_NONCE..].copy_from_slice(&fob_signed_nonce);
+  uart_write_board(&fob_signed_msg); 
+  log!("Fob: Sent UNLOCK_RESP to car");
+}
+
+fn unlock_send_features() {
+  // Read features from EEPROM
+  let mut feature1_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
+  let mut feature2_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
+  let mut feature3_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
+  let mut feature_sig1_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
+  let mut feature_sig2_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
+  let mut feature_sig3_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
+  eeprom_read(&mut feature1_w, FOBMEM_FEAT_1);
+  eeprom_read(&mut feature2_w, FOBMEM_FEAT_2);
+  eeprom_read(&mut feature3_w, FOBMEM_FEAT_3);
+  eeprom_read(&mut feature_sig1_w, FOBMEM_FEAT_1_SIG);
+  eeprom_read(&mut feature_sig2_w, FOBMEM_FEAT_2_SIG);
+  eeprom_read(&mut feature_sig3_w, FOBMEM_FEAT_3_SIG);
+
+  // Convert features to bytes
+  let mut feature1_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut feature2_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut feature3_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut feature_sig1_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  let mut feature_sig2_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  let mut feature_sig3_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
+  words_to_bytes(&feature1_w, &mut feature1_b);
+  words_to_bytes(&feature2_w, &mut feature2_b);
+  words_to_bytes(&feature3_w, &mut feature3_b);
+  words_to_bytes(&feature_sig1_w, &mut feature_sig1_b);
+  words_to_bytes(&feature_sig2_w, &mut feature_sig2_b);
+  words_to_bytes(&feature_sig3_w, &mut feature_sig3_b);
+
+  // Send UNLOCK_FEAT to car
+  uart_writeb_board(MAGIC_UNLOCK_FEAT);
+  uart_write_board(&feature1_b);
+  uart_write_board(&feature2_b);
+  uart_write_board(&feature3_b);
+  uart_write_board(&feature_sig1_b);
+  uart_write_board(&feature_sig2_b);
+  uart_write_board(&feature_sig3_b);
+  log!("Fob: Sent UNLOCK_FEAT to car");
 }
 
 fn enable_feature() {
