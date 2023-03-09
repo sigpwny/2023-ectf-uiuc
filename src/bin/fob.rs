@@ -289,6 +289,9 @@ fn paired_fob_pairing() {
 
 /// Handle PAIR_SYN
 fn unpaired_fob_pairing() {
+  // Setup timeout so we don't spin forever on error condition
+  start_delay_timer_us(10_000_000);
+
   // 1. Read PIN from UART
   let mut pin: [u8; LEN_PIN_ATTEMPT] = [0; LEN_PIN_ATTEMPT];
   uart_read_board(&mut pin);
@@ -327,6 +330,9 @@ fn unpaired_fob_pairing() {
           // log!("Unpaired fob: Received invalid magic byte: {:x?}", magic);
         }
       }
+    }
+    if get_remaining_us_delay_timer() == 0 {
+      return
     }
   }
 
