@@ -106,7 +106,7 @@ pub trait Signer {
 }
 
 impl Signer for SecretKey {
-    // https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/cortex_m4.rs
+    // https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/cortex_m4.rs#L187-L190
     fn sign(&self, message: &[u8], rng: impl CryptoRng + RngCore) -> Signature {
         let prehashed_message = sha256(message);
         self.sign_prehashed(prehashed_message.as_ref(), rng)
@@ -118,7 +118,7 @@ pub trait Verifier {
 }
 
 impl Verifier for PublicKey {
-    // https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/cortex_m4.rs
+    // https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/cortex_m4.rs#L302-L305
     fn verify(&self, message: &[u8], signature: &Signature) -> bool {
         let prehashed_message = sha256(message);
         self.verify_prehashed(prehashed_message.as_ref(), signature)
