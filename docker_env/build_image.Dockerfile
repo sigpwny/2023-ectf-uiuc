@@ -21,5 +21,12 @@ RUN rustup target add thumbv7em-none-eabihf
 
 RUN python3 -m pip install fastecdsa
 
+WORKDIR /sigpwny
+
+COPY Cargo.toml Cargo.lock memory.x ./
+COPY .cargo ./.cargo
+RUN mkdir src src/bin && echo "#![no_std] #![no_main] use cortex_m_rt::entry; use core::panic::PanicInfo; #[entry] fn main() -> ! {loop{}} #[panic_handler] fn panic(_: &PanicInfo) -> ! {loop{}}" > src/main.rs && echo "#![no_std]" > src/lib.rs && cp src/main.rs src/bin/car.rs && cp src/main.rs src/bin/fob.rs
+RUN cargo build --release --bin sigpwny-ectf-2023
+
 # copy the entire build directory (src, Cargo.toml, etc.) to /sigpwny
-COPY . /sigpwny
+COPY . .
