@@ -462,8 +462,8 @@ fn request_unlock() {
   // This does not need to be random since it is used for signature padding
   let rng = rand_chacha::ChaChaRng::from_seed([0; 32]);
 
+  log!("Fob: Sending UNLOCK_REQ to car");
   uart_writeb_board(MAGIC_UNLOCK_REQ);
-  log!("Fob: Sent UNLOCK_REQ to fob");
   
   // Receive unlock challenge from car
   loop {
@@ -471,7 +471,6 @@ fn request_unlock() {
       let magic: u8 = uart_readb_board();
       match magic {
         MAGIC_UNLOCK_CHAL => {
-          log!("Fob: Received UNLOCK_CHAL from car");
           break;
         }
         _ => {
@@ -484,16 +483,17 @@ fn request_unlock() {
 
   let mut unlock_chal_msg: [u8; MSGLEN_UNLOCK_CHAL] = [0; MSGLEN_UNLOCK_CHAL];
   uart_read_board(&mut unlock_chal_msg);
+  log!("Fob: Received UNLOCK_CHAL from car");
 
   // Read nonce from message
-  let car_nonce_b: [u8; LEN_NONCE] = [0; LEN_NONCE];
-  unlock_chal_msg[..LEN_NONCE].copy_from_slice(&car_nonce_b);
-  log!("Fob: received nonce value: {:x?}", car_nonce_b);
+  let mut car_nonce_b: [u8; LEN_NONCE] = [0; LEN_NONCE];
+  car_nonce_b.copy_from_slice(&unlock_chal_msg[..LEN_NONCE]);
+  // log!("Fob: Received nonce value: {:x?}", car_nonce_b);
 
   // Read nonce signature from message
-  let car_nonce_sig_b: [u8; LEN_NONCE_SIG] = [0; LEN_NONCE_SIG];
-  unlock_chal_msg[LEN_NONCE..LEN_NONCE + LEN_NONCE_SIG].copy_from_slice(&car_nonce_sig_b);
-  log!("Fob: received nonce signature: {:x?}", car_nonce_sig_b);
+  let mut car_nonce_sig_b: [u8; LEN_NONCE_SIG] = [0; LEN_NONCE_SIG];
+  car_nonce_sig_b.copy_from_slice(&unlock_chal_msg[LEN_NONCE..LEN_NONCE + LEN_NONCE_SIG]);
+  log!("Fob: Received nonce signature: {:x?}", car_nonce_sig_b);
 
   // Read car public key from EEPROM
   let mut car_public_w: [u32; LENW_CAR_PUBLIC] = [0; LENW_CAR_PUBLIC];
@@ -526,9 +526,11 @@ fn request_unlock() {
   
   // Send signed nonce to car
   let mut fob_signed_msg: [u8; 1 + MSGLEN_UNLOCK_RESP] = [MAGIC_UNLOCK_RESP; 1 + MSGLEN_UNLOCK_RESP];
-  fob_signed_msg[1..].copy_from_slice(&fob_nonce_b);
+  fob_signed_msg[1..1 + LEN_NONCE].copy_from_slice(&fob_nonce_b);
   fob_signed_msg[1 + LEN_NONCE..].copy_from_slice(&fob_signed_nonce);
-  uart_write_board(&fob_signed_msg); 
+  // log!("Fob: Sending nonce: {:x?}", fob_nonce_b);
+  // log!("Fob: Sending nonce signature: {:x?}", fob_signed_nonce);
+  uart_write_board(&fob_signed_msg);
   log!("Fob: Sent UNLOCK_RESP to car");
 }
 
