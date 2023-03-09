@@ -8,7 +8,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     binutils-arm-none-eabi \
     gcc-arm-none-eabi \
     libgmp3-dev \
-    curl
+    curl \
+	xxd
 
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
