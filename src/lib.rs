@@ -93,7 +93,7 @@ pub fn update_entropy_with_timer(entropy: &mut [u8; 32]) {
     }
 }
 
-// https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/lib.rs
+// https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/lib.rs#L27-L33
 pub fn sha256(message: &[u8]) -> [u8; 32] {
     let mut hash = Sha256::new();
     hash.update(message);
