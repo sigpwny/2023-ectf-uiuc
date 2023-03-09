@@ -13,7 +13,9 @@
 # @copyright Copyright (c) 2023 The MITRE Corporation
 
 import argparse
+from fastecdsa import ecdsa, curve
 
+secrets_dir = "/secrets"
 
 # @brief Function to create a new feature package
 # @param package_name, name of the file to output package data to
@@ -21,16 +23,23 @@ import argparse
 # @param feature_number, the feature number being packaged
 def package(package_name, car_id, feature_number):
 
-    # Pad id lenth to 8 bytes
-    car_id_len = len(car_id)
-    car_id_pad = (8 - car_id_len) * "\0"
+    # Manufacturer deployment secret
+    man_sec = open(os.path.join(secrets_dir, "man_sec"), "rb").read()
+
+    # Pad car ID to 4 bytes
+    car_id_b = int(car_id, base=16).to_bytes(4, "big")
+
+    # Pad feature number to 4 bytes
+    feat_b = int(feature_number, base=16).to_bytes(4, "big")
 
     # Create package to match defined structure on fob
-    package_message_bytes = (
-        str.encode(car_id + car_id_pad)
-        + feature_number.to_bytes(1, "little")
-        + str.encode("\n")
-    )
+    message = car_id_b + feat_b
+
+    # Sign package
+    feat_sig_r, feat_sig_s = ecdsa.sign(message, int.from_bytes(man_sec, "big"), curve.P256)
+    feat_sig = (feat_sig_r+feat_sig_s).to_bytes(64, "big")
+
+    package_message_bytes = message + feat_sig
 
     # Write data out to package file
     # /package_dir/ is the mounted location inside the container - should not change
