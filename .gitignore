@@ -1,5 +1,5 @@
-/target
-/tivaware/driverlib/gcc
+target
+tivaware/driverlib/gcc
 
 # Ignore user config files
 .vscode
