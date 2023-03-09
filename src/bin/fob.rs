@@ -172,7 +172,7 @@ fn main() -> ! {
         _ => {
           // log!("Received invalid magic byte from board: {:x?}", magic);
         }
-      } 
+      }
     }
   }
 }
