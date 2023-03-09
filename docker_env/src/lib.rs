@@ -7,7 +7,7 @@ use core::{slice, array::from_fn};
 
 use driverlib::{get_temp_samples, get_tick_timer};
 use p256_cortex_m4::{SecretKey, Signature, PublicKey};
-use rand_chacha::{rand_core::{CryptoRng, RngCore, SeedableRng}, ChaChaRng};
+use rand_chacha::rand_core::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
 pub use tiva::board::Board;
 
@@ -76,21 +76,19 @@ pub fn get_temp_entropy() -> [u8; 32] {
     hash.finalize().into()
 }
 
+pub fn get_timer_entropy() -> [u8; 32] {
+    let mut hash = Sha256::new();
+    for _ in 0..128 {
+        hash.update(get_tick_timer().to_ne_bytes())
+    }
+    hash.finalize().into()
+}
+
 pub fn get_combined_entropy() -> [u8; 32] {
     let ram_entropy = get_ram_entropy();
     let temp_entropy = get_temp_entropy();
-    from_fn(|i| ram_entropy[i] ^ temp_entropy[i])
-}
-
-pub fn update_entropy_with_timer(entropy: &mut [u8; 32]) {
-    // Initialize RNG using entropy as seed
-    let mut rng = ChaChaRng::from_seed(*entropy);
-    // "I used the entropy to write the entropy"
-    rng.fill_bytes(entropy);
-    let hash: [u8; 32] = sha256(&get_tick_timer().to_be_bytes());
-    for i in 0..32 {
-        entropy[i] ^= hash[i];
-    }
+    let timer_entropy = get_timer_entropy();
+    from_fn(|i| ram_entropy[i] ^ temp_entropy[i] ^ timer_entropy[i])
 }
 
 // https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/lib.rs#L27-L33

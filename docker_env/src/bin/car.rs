@@ -6,11 +6,11 @@ use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
   driverlib::*,
-  log, setup_board, Board, words_to_bytes, Signer, Verifier, get_combined_entropy, update_entropy_with_timer
+  log, setup_board, Board, words_to_bytes, Signer, Verifier, get_combined_entropy
 };
 
 use p256_cortex_m4::{SecretKey, Signature, PublicKey};
-use rand_chacha::rand_core::{SeedableRng, RngCore};
+use rand_chacha::rand_core::{SeedableRng, RngCore, CryptoRng};
 
 
 /**
@@ -20,7 +20,7 @@ const CARMEM_CAR_SECRET:      u32 = 0x100;
 const CARMEM_MAN_PUBLIC:      u32 = 0x120;
 const CARMEM_FOB_PUBLIC:      u32 = 0x160;
 const CARMEM_CAR_ID:          u32 = 0x200;
- 
+
 const CARMEM_MSG_FEAT_3:      u32 = 0x700;
 const CARMEM_MSG_FEAT_2:      u32 = 0x740;
 const CARMEM_MSG_FEAT_1:      u32 = 0x780;
@@ -80,8 +80,9 @@ const MSGLEN_UNLOCK_FEAT:     usize = (LEN_FEAT * 3) + (LEN_FEAT_SIG * 3);
 fn main() -> ! {
   let mut board: Board = setup_board();
 
-  let mut entropy: [u8; 32] = get_combined_entropy();
-  update_entropy_with_timer(&mut entropy);
+  // Seed RNG with entropy sources
+  let entropy: [u8; 32] = get_combined_entropy();
+  let mut rng = rand_chacha::ChaChaRng::from_seed(entropy);
 
   loop {
     if uart_avail_board() {
@@ -90,8 +91,7 @@ fn main() -> ! {
         MAGIC_UNLOCK_REQ => {
           log!("Car: Received UNLOCK_REQ");
           board.led_blue.set_high().unwrap();
-          update_entropy_with_timer(&mut entropy);
-          unlock_start(&mut entropy);
+          unlock_start(&mut rng);
           board.led_blue.set_low().unwrap();
         }
         // Add other magic bytes here
@@ -103,15 +103,12 @@ fn main() -> ! {
   }
 }
 
-fn unlock_start(entropy: &[u8; 32]) {
+fn unlock_start(rng: &mut (impl CryptoRng + RngCore)) {
   // Start timeout timer for 500ms, need time to rx from fob
   start_delay_timer_us(500_000);
 
-  // Initialize RNG
-  let mut rng = rand_chacha::ChaChaRng::from_seed(*entropy);
-
   // Initialize car nonce with random value :) it's very random
-  let mut car_nonce: u64 = rng.next_u64();
+  let mut car_nonce: u64 = rng.next_u64() ^ get_tick_timer();
   let car_nonce_b: [u8; 8] = car_nonce.to_be_bytes();
 
   // Get car secret key
