@@ -10,37 +10,42 @@ from fastecdsa import ecdsa, curve
 secrets_dir = sys.argv[1]
 eeprom_file = sys.argv[2]
 
-# put the salted pin in eeprom if necessary
+fob_secret = None
+fob_secret_enc = None
+fob_salt = os.urandom(12) # Generate fob-unique FOB_SALT
+pin_hash = None
+car_id = None
+car_public = None
+fob_is_paired = b"\x00\x00\x00\x00"
+num_feat = b"\x00\x00\x00\x00"
 
+# If we are configuring a paired fob...
 if len(sys.argv) > 4:
-    fob_sec = open(os.path.join(secrets_dir, "fob_sec"), "rb").read()
-    car_id = int(sys.argv[3], base=16).to_bytes(4, "big")
+    # Prepare inputs as bytes
+    fob_secret = open(os.path.join(secrets_dir, "fob_sec"), "rb").read()
+    car_public = open(os.path.join(secrets_dir, "car_pub"), "rb").read()
+    car_id = int(sys.argv[3]).to_bytes(4, "big")
     pair_pin = bytes.fromhex(sys.argv[4])
 
-    # generate salt on the fly
-    salt = os.urandom(12)
+    # Generate PIN_HASH
     m = hashlib.sha256()
-    m.update(salt + b"\x00" + pair_pin)
-    hashed_pin = m.digest()
+    m.update(fob_salt + b"\x00" + pair_pin)
+    pin_hash = m.digest()
 
+    # Generate FOB_SECRET_ENC
     m = hashlib.sha256()
-    m.update(pair_pin + b"\x00" + salt)
-    fob_sec_enc = m.digest()
-    fob_sec_enc = bytes(a ^ b for a, b in zip(fob_sec_enc, fob_sec))
+    m.update(pair_pin + b"\x00" + fob_salt)
+    fob_secret_enc = m.digest()
+    fob_secret_enc = bytes(a ^ b for a, b in zip(fob_secret_enc, fob_secret))
 
-
-else:
-    fob_sec = None
-    fob_sec_enc = None
-    car_id = None
-    hashed_pin = None
-    salt = None
+    # Set fob to paired
+    fob_is_paired = b"\x00\x00\x00\x01"
 
 addresses = {
-    "FOBMEM_FOB_SECRET":     [0x100, fob_sec],
-    "FOBMEM_FOB_SECRET_ENC": [0x120, fob_sec_enc],
-    "FOBMEM_FOB_SALT":       [0x140, salt],
-    "FOBMEM_PIN_HASH":       [0x160, hashed_pin],
+    "FOBMEM_FOB_SECRET":     [0x100, fob_secret],
+    "FOBMEM_FOB_SECRET_ENC": [0x120, fob_secret_enc],
+    "FOBMEM_FOB_SALT":       [0x140, fob_salt],
+    "FOBMEM_PIN_HASH":       [0x160, pin_hash],
     "FOBMEM_CAR_ID":         [0x200, car_id],
     "FOBMEM_FEAT_1":         [0x204, None],
     "FOBMEM_FEAT_2":         [0x208, None],
@@ -48,8 +53,9 @@ addresses = {
     "FOBMEM_FEAT_1_SIG":     [0x240, None],
     "FOBMEM_FEAT_2_SIG":     [0x280, None],
     "FOBMEM_FEAT_3_SIG":     [0x2C0, None],
-    "FOBMEM_CAR_PUBLIC":     [0x300, open(os.path.join(secrets_dir, "car_pub"), "rb").read()],
-    "FOBMEM_FOB_IS_PAIRED":  [0x400, None],
+    "FOBMEM_CAR_PUBLIC":     [0x300, car_public],
+    "FOBMEM_FOB_IS_PAIRED":  [0x400, fob_is_paired],
+    "FOBMEM_NUM_FEAT":       [0x404, num_feat],
     "FOBMEM_MSG_FEAT_3":     [0x700, None],
     "FOBMEM_MSG_FEAT_2":     [0x740, None],
     "FOBMEM_MSG_FEAT_1":     [0x780, None],
@@ -57,8 +63,8 @@ addresses = {
 }
 
 with open(eeprom_file, 'wb+') as f:
-    # write 0x00 to all addresses (from 0 to 2048)
-    f.write(b'\x00' * 2048)
+    # Write 0x00 to all bytes (from 0 to 2048)
+    f.write(b'\xff' * 2048)
 
     for key, value in addresses.items():
         f.seek(value[0])

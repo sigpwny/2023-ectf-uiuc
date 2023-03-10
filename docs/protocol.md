@@ -119,7 +119,6 @@ sequenceDiagram
   participant Host Computer
   participant Paired Fob
   Host Computer ->> Paired Fob: ENAB_FEAT
-  Host Computer -->> Paired Fob: Feature index (1, 2, 3)
   Host Computer -->> Paired Fob: Feature number
   Host Computer -->> Paired Fob: Feature signature
 ```
@@ -127,12 +126,12 @@ sequenceDiagram
 ### ENAB_FEAT
 Sent from the host computer to a paired fob. Only paired fobs will act on 
 this message. The fob will not make any attempt to validate the feature, 
-except that a valid feature index is provided (1, 2, or 3).
+except to store the feature at the next available index (max 3).
 
-|             | Magic     | Feature index             | Feature number | Feature signature |
-| ----------- | --------- | ------------------------- | -------------- | ----------------- |
-| **Bytes**   | `\x50`    | `\x01`, `\x02`, or `\x03` | 32 bit integer | 64 bytes          |
-| **Offsets** | 0x0 - 0x1 | 0x1 - 0x2                 | 0x2 - 0x6      | 0x06 - 0x46       |
+|             | Magic     | Feature number | Feature signature |
+| ----------- | --------- | -------------- | ----------------- |
+| **Bytes**   | `\x50`    | 32 bit integer | 64 bytes          |
+| **Offsets** | 0x0 - 0x1 | 0x1 - 0x5      | 0x05 - 0x45       |
 
 ## Unlocking Car
 

@@ -68,7 +68,9 @@ const MAGIC_UNLOCK_CHAL:      u8 = 0x61;
 const MAGIC_UNLOCK_RESP:      u8 = 0x62;
 const MAGIC_UNLOCK_GOOD:      u8 = 0x63;
 const MAGIC_UNLOCK_FEAT:      u8 = 0x64;
-const MAGIC_UNLOCK_RST:       u8 = 0x69;
+
+const MAGIC_HOST_SUCCESS:     u8 = 0xAA;
+const MAGIC_HOST_FAILURE:     u8 = 0xBB;
 
 /**
  * Message lengths
