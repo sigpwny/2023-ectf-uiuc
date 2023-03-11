@@ -1,9 +1,9 @@
 [package]
-authors = ["Feyorsh <ghubs25@gmail.com>"]
+authors = ["SIGPwny <ctf@sigpwny.com>"]
 edition = "2021"
 readme = "README.md"
 name = "sigpwny-ectf-2023"
-version = "0.1.0"
+version = "1.0.0"
 
 [dependencies]
 cortex-m = "0.7.0"
