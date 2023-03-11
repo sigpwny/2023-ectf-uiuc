@@ -39,7 +39,6 @@ const LEN_CAR_PUBLIC:         usize = 64;
 const LEN_MAN_SECRET:         usize = 32;
 const LEN_MAN_PUBLIC:         usize = 64;
 const LEN_CAR_ID:             usize = 4; // 1 byte at heart
-const LEN_FEAT:               usize = 4; // 1 byte at heart
 const LEN_FEAT_SIG:           usize = 64;
 const LEN_FLAG:               usize = 64;
 
@@ -51,13 +50,18 @@ const LENW_CAR_PUBLIC:        usize = LEN_CAR_PUBLIC / 4;
 const LENW_MAN_SECRET:        usize = LEN_MAN_SECRET / 4;
 const LENW_MAN_PUBLIC:        usize = LEN_MAN_PUBLIC / 4;
 const LENW_CAR_ID:            usize = LEN_CAR_ID / 4;
-const LENW_FEAT:              usize = LEN_FEAT / 4;
 const LENW_FEAT_SIG:          usize = LEN_FEAT_SIG / 4;
 const LENW_FLAG:              usize = LEN_FLAG / 4;
 
 // Unlock specific state
 const LEN_NONCE:              usize = 8; // 64-bit nonce
 const LEN_NONCE_SIG:          usize = 64;
+
+/**
+ * Temporary state lengths
+ */
+const LEN_FEAT_NUM:           usize = 4; // value of 1, 2, or 3
+const LENW_FEAT_NUM:          usize = LEN_FEAT_NUM / 4;
 
 /**
  * Magic Bytes
@@ -77,7 +81,7 @@ const MAGIC_HOST_FAILURE:     u8 = 0xBB;
  */
 const MSGLEN_UNLOCK_CHAL:     usize = LEN_NONCE + LEN_NONCE_SIG;
 const MSGLEN_UNLOCK_RESP:     usize = LEN_NONCE + LEN_NONCE_SIG;
-const MSGLEN_UNLOCK_FEAT:     usize = (LEN_FEAT * 3) + (LEN_FEAT_SIG * 3);
+const MSGLEN_UNLOCK_FEAT:     usize = (LEN_FEAT_SIG * 3);
 
 #[entry]
 fn main() -> ! {
@@ -196,9 +200,6 @@ fn unlock_request_features() {
   log!("Car: Sending UNLOCK_GOOD to fob");
   uart_writeb_board(MAGIC_UNLOCK_GOOD);
 
-  let mut feature1_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
-  let mut feature2_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
-  let mut feature3_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
   let mut feature_sig1_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
   let mut feature_sig2_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
   let mut feature_sig3_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
@@ -215,9 +216,6 @@ fn unlock_request_features() {
   }
 
   // Read UNLOCK_FEAT data
-  uart_read_board(&mut feature1_b);
-  uart_read_board(&mut feature2_b);
-  uart_read_board(&mut feature3_b);
   uart_read_board(&mut feature_sig1_b);
   uart_read_board(&mut feature_sig2_b);
   uart_read_board(&mut feature_sig3_b);
@@ -244,6 +242,9 @@ fn unlock_request_features() {
   let feature_sig3 = Signature::from_untagged_bytes(&feature_sig3_b).unwrap();
 
   // Concatenate car ID and feature numbers
+  let mut feature1_b: [u8; LEN_FEAT_NUM] = [0x00, 0x00, 0x00, 0x01];
+  let mut feature2_b: [u8; LEN_FEAT_NUM] = [0x00, 0x00, 0x00, 0x02];
+  let mut feature3_b: [u8; LEN_FEAT_NUM] = [0x00, 0x00, 0x00, 0x03];
   let mut feat_pkg1: [u8; LEN_CAR_ID + LEN_FEAT] = [0; LEN_CAR_ID + LEN_FEAT];
   let mut feat_pkg2: [u8; LEN_CAR_ID + LEN_FEAT] = [0; LEN_CAR_ID + LEN_FEAT];
   let mut feat_pkg3: [u8; LEN_CAR_ID + LEN_FEAT] = [0; LEN_CAR_ID + LEN_FEAT];

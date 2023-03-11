@@ -31,8 +31,11 @@ sequenceDiagram
   Paired Fob ->> Host Computer: "Paired fob: PIN is correct"
   Paired Fob ->> Unpaired Fob: PAIR_FIN
   Paired Fob -->> Unpaired Fob: FOB_SECRET_ENC (decrypted)
-  Paired Fob -->> Unpaired Fob: CAR_ID, Feature numbers
-  Paired Fob -->> Unpaired Fob: Feature signatures, CAR_PUBLIC
+  Paired Fob -->> Unpaired Fob: CAR_ID
+  Paired Fob -->> Unpaired Fob: FEAT_1_SIG
+  Paired Fob -->> Unpaired Fob: FEAT_2_SIG
+  Paired Fob -->> Unpaired Fob: FEAT_3_SIG
+  Paired Fob -->> Unpaired Fob: CAR_PUBLIC
   alt PAIR_FIN takes too long
     Unpaired Fob -x Host Computer: "Unpaired fob: Fob data did not transfer in time"
     Note over Unpaired Fob: UART blocked until 5s TTT
@@ -85,9 +88,9 @@ fob data to the unpaired fob.
 
 ### PAIR_FIN
 Sent by the paired fob to the unpaired fob to transfer fob data. The 
-transmitted fob data includes the decrypted car secret and three features. If 
-there are less than three features, null bytes will be sent in place of 
-missing features. This ensures that the payload is of fixed length.
+transmitted fob data includes the decrypted car secret and three features. All 
+data stored at each feature signature is sent regardless of whether the 
+feature is enabled or not. This ensures that the payload is of fixed length.
 
 If more than 500ms passes while the unpaired fob awaits the entire payload to 
 be sent (over 1000ms TTT), then the unpaired fob will send an error message to 
@@ -98,10 +101,10 @@ and recreate the EEPROM structure of the paired fob (using its own salt to
 encrypt the car secret). A success message is sent to the host computer once 
 this is completed.
 
-|             | Magic     | Fob secret (decrypted) | Car ID         | Feature numbers     | Feature signatures | Car public key |
-| ----------- | --------- | ---------------------- | -------------- | ------------------- | ------------------ | -------------- |
-| **Bytes**   | `\x43`    | 32 bytes               | 32 bit integer | 3 x 32 bit integers | 3 x 64 bytes       | 64 bytes       |
-| **Offsets** | 0x0 - 0x1 | 0x01 - 0x21            | 0x21 - 0x25    | 0x25 - 0x31         | 0x31 - 0xF1        | 0x0F1 - 0x131  |
+|             | Magic     | Fob secret (decrypted) | Car ID         | Feature signatures | Car public key |
+| ----------- | --------- | ---------------------- | -------------- | ------------------ | -------------- |
+| **Bytes**   | `\x43`    | 32 bytes               | 32 bit integer | 3 x 64 bytes       | 64 bytes       |
+| **Offsets** | 0x0 - 0x1 | 0x01 - 0x21            | 0x21 - 0x25    | 0x25 - 0xE5        | 0x0E5 - 0x125  |
 
 ### PAIR_RST
 If received, the fob will exit the current transaction (reset). The fob is not 
@@ -126,7 +129,7 @@ sequenceDiagram
 ### ENAB_FEAT
 Sent from the host computer to a paired fob. Only paired fobs will act on 
 this message. The fob will not make any attempt to validate the feature, 
-except to store the feature at the next available index (max 3).
+except that the feature number is of the values 1, 2, or 3.
 
 |             | Magic     | Feature number | Feature signature |
 | ----------- | --------- | -------------- | ----------------- |
@@ -160,8 +163,9 @@ sequenceDiagram
   Note over Host Computer, Fob: Car unlocked
   Car ->> Fob: UNLOCK_GOOD
   Fob ->> Car: UNLOCK_FEAT
-  Fob -->> Car: Feature numbers
-  Fob -->> Car: Feature signatures
+  Fob -->> Car: FEAT_1_SIG
+  Fob -->> Car: FEAT_2_SIG
+  Fob -->> Car: FEAT_3_SIG
   Car ->> Host Computer: Valid features list and <br/>feature messages in EEPROM
   Note over Host Computer: <1s TTT on success
 ```
@@ -210,14 +214,14 @@ the fob for its stored features.
 ### UNLOCK_FEAT
 This is sent from the fob to the car and contains the feature numbers as well 
 as their respective signatures. The car will validate the provided features 
-using the signatures. Feature numbers and feature signatures are sent in 
-order (1, 2, 3). The fob will send data stored at feature EEPROM regardless 
-of whether there is an enabled feature.
+using the signatures. Feature signatures are sent in order (1, 2, 3). The fob 
+will send data stored at feature EEPROM regardless of whether there is an 
+enabled feature.
 
-|             | Magic     | Feature numbers     | Feature signatures |
-| ----------- | --------- | ------------------- | ------------------ |
-| **Bytes**   | `\x64`    | 3 x 32 bit integers | 3 x 64 bytes       |
-| **Offsets** | 0x0 - 0x1 | 0x1 - 0xD           | 0x0D - 0xCD        |
+|             | Magic     | Feature signatures |
+| ----------- | --------- | ------------------ |
+| **Bytes**   | `\x64`    | 3 x 64 bytes       |
+| **Offsets** | 0x0 - 0x1 | 0x01 - 0xC1        |
 
 > **Warning**  
 > Car MUST include feature number and car ID combined/concatenated to validate 
