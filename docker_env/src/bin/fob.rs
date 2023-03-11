@@ -6,7 +6,6 @@ use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
   driverlib::*,
-  driverlib::{self},
   log, setup_board, Board, words_to_bytes, bytes_to_words, Signer, Verifier, sha256
 };
 
@@ -112,7 +111,7 @@ const MSGLEN_PAIR_FIN:        usize = LEN_FOB_SECRET_ENC +
                                       // Features sent in index order (1, 2, 3)
 const MSGLEN_UNLOCK_CHAL:     usize = LEN_NONCE + LEN_NONCE_SIG;
 const MSGLEN_UNLOCK_RESP:     usize = LEN_NONCE + LEN_NONCE_SIG;
-const MSGLEN_UNLOCK_FEAT:     usize = (LEN_FEAT_SIG * 3);
+const MSGLEN_UNLOCK_FEAT:     usize = LEN_FEAT_SIG * 3;
 
 #[entry]
 fn main() -> ! {
@@ -122,8 +121,8 @@ fn main() -> ! {
     if read_sw_1() {
       request_unlock();
     }
-    if driverlib::uart_avail_host() {
-      let magic: u8 = driverlib::uart_readb_host();
+    if uart_avail_host() {
+      let magic: u8 = uart_readb_host();
       match magic {
         MAGIC_PAIR_REQ => {
           if is_paired() {

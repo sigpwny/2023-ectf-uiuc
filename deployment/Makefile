@@ -18,4 +18,4 @@ __check_defined = \
 
 all:
 	$(call check_defined SECRETS_DIR)
-	./gen_secrets.py "${SECRETS_DIR}"
+	python3 gen_secrets.py "${SECRETS_DIR}"

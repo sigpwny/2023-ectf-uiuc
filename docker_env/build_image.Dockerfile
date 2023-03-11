@@ -8,18 +8,18 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     binutils-arm-none-eabi \
     gcc-arm-none-eabi \
     libgmp3-dev \
-    curl \
-	xxd
+    curl
 
+# Set up Rust
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
-
 ENV PATH="/root/.cargo/bin:${PATH}"
-
 RUN rustup default nightly
-
 RUN rustup target add thumbv7em-none-eabihf
 
 RUN python3 -m pip install fastecdsa
+
+# Create a revision file to force a rebuild of the image if necessary
+RUN echo "1.0.0" > /.revision
 
 WORKDIR /sigpwny
 

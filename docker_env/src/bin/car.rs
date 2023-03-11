@@ -6,8 +6,7 @@ use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
   driverlib::*,
-  driverlib::{self},
-  log, setup_board, Board, words_to_bytes, bytes_to_words, Signer, Verifier, get_combined_entropy, update_entropy_with_timer
+  log, setup_board, Board, words_to_bytes, Signer, Verifier, get_combined_entropy, update_entropy_with_timer
 };
 
 use p256_cortex_m4::{SecretKey, Signature, PublicKey};
@@ -81,7 +80,7 @@ const MAGIC_HOST_FAILURE:     u8 = 0xBB;
  */
 const MSGLEN_UNLOCK_CHAL:     usize = LEN_NONCE + LEN_NONCE_SIG;
 const MSGLEN_UNLOCK_RESP:     usize = LEN_NONCE + LEN_NONCE_SIG;
-const MSGLEN_UNLOCK_FEAT:     usize = (LEN_FEAT_SIG * 3);
+const MSGLEN_UNLOCK_FEAT:     usize = LEN_FEAT_SIG * 3;
 
 #[entry]
 fn main() -> ! {
@@ -242,12 +241,12 @@ fn unlock_request_features() {
   let feature_sig3 = Signature::from_untagged_bytes(&feature_sig3_b).unwrap();
 
   // Concatenate car ID and feature numbers
-  let mut feature1_b: [u8; LEN_FEAT_NUM] = [0x00, 0x00, 0x00, 0x01];
-  let mut feature2_b: [u8; LEN_FEAT_NUM] = [0x00, 0x00, 0x00, 0x02];
-  let mut feature3_b: [u8; LEN_FEAT_NUM] = [0x00, 0x00, 0x00, 0x03];
-  let mut feat_pkg1: [u8; LEN_CAR_ID + LEN_FEAT] = [0; LEN_CAR_ID + LEN_FEAT];
-  let mut feat_pkg2: [u8; LEN_CAR_ID + LEN_FEAT] = [0; LEN_CAR_ID + LEN_FEAT];
-  let mut feat_pkg3: [u8; LEN_CAR_ID + LEN_FEAT] = [0; LEN_CAR_ID + LEN_FEAT];
+  let feature1_b: [u8; LEN_FEAT_NUM] = [0x00, 0x00, 0x00, 0x01];
+  let feature2_b: [u8; LEN_FEAT_NUM] = [0x00, 0x00, 0x00, 0x02];
+  let feature3_b: [u8; LEN_FEAT_NUM] = [0x00, 0x00, 0x00, 0x03];
+  let mut feat_pkg1: [u8; LEN_CAR_ID + LEN_FEAT_NUM] = [0; LEN_CAR_ID + LEN_FEAT_NUM];
+  let mut feat_pkg2: [u8; LEN_CAR_ID + LEN_FEAT_NUM] = [0; LEN_CAR_ID + LEN_FEAT_NUM];
+  let mut feat_pkg3: [u8; LEN_CAR_ID + LEN_FEAT_NUM] = [0; LEN_CAR_ID + LEN_FEAT_NUM];
   feat_pkg1[..LEN_CAR_ID].copy_from_slice(&car_id_b);
   feat_pkg1[LEN_CAR_ID..].copy_from_slice(&feature1_b);
   feat_pkg2[..LEN_CAR_ID].copy_from_slice(&car_id_b);
