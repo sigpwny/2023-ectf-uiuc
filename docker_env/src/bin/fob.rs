@@ -20,7 +20,7 @@ const FOBMEM_FOB_SECRET:      u32 = 0x100;
 const FOBMEM_FOB_SECRET_ENC:  u32 = 0x120;
 const FOBMEM_FOB_SALT:        u32 = 0x140;
 const FOBMEM_PIN_HASH:        u32 = 0x160;
-const FOBMEM_CAR_ID:          u32 = 0x200; // unused
+const FOBMEM_CAR_ID:          u32 = 0x200;
 const FOBMEM_FEAT_1:          u32 = 0x204;
 const FOBMEM_FEAT_2:          u32 = 0x208;
 const FOBMEM_FEAT_3:          u32 = 0x20C;
@@ -29,6 +29,7 @@ const FOBMEM_FEAT_2_SIG:      u32 = 0x280;
 const FOBMEM_FEAT_3_SIG:      u32 = 0x2C0;
 const FOBMEM_CAR_PUBLIC:      u32 = 0x300;
 const FOBMEM_FOB_IS_PAIRED:   u32 = 0x400;
+const FOBMEM_NUM_FEAT:        u32 = 0x404;
 
 const FOBMEM_MSG_FEAT_3:      u32 = 0x700;
 const FOBMEM_MSG_FEAT_2:      u32 = 0x740;
@@ -78,11 +79,13 @@ const LENW_FOB_SALT:          usize = LEN_FOB_SALT / 4;
 const LENW_PIN_HASH:          usize = LEN_PIN_HASH / 4;
 const LENW_FOB_IS_PAIRED:     usize = LEN_FOB_IS_PAIRED / 4;
 
+// Enable feature specific state
+const LEN_NUM_FEAT:           usize = 4;
+
 /**
  * Temporary state lengths
  */
 const LEN_PIN_ATTEMPT:        usize = 3;
-const LEN_FEAT_IDX:           usize = 1;
 
 /**
  * Magic Bytes
@@ -92,6 +95,7 @@ const MAGIC_PAIR_SYN:         u8 = 0x41;
 const MAGIC_PAIR_ACK:         u8 = 0x42;
 const MAGIC_PAIR_FIN:         u8 = 0x43;
 const MAGIC_PAIR_RST:         u8 = 0x44;
+
 const MAGIC_ENAB_FEAT:        u8 = 0x50;
 
 const MAGIC_UNLOCK_REQ:       u8 = 0x60;
@@ -99,9 +103,9 @@ const MAGIC_UNLOCK_CHAL:      u8 = 0x61;
 const MAGIC_UNLOCK_RESP:      u8 = 0x62;
 const MAGIC_UNLOCK_GOOD:      u8 = 0x63;
 const MAGIC_UNLOCK_FEAT:      u8 = 0x64;
-const MAGIC_UNLOCK_RST:       u8 = 0x69;
 
-
+const MAGIC_HOST_SUCCESS:     u8 = 0xAA;
+const MAGIC_HOST_FAILURE:     u8 = 0xBB;
 
 /**
  * Message lengths
@@ -160,6 +164,13 @@ fn main() -> ! {
             board.led_blue.set_high().unwrap();
             unpaired_fob_pairing();
             board.led_blue.set_low().unwrap();
+            if is_paired() {
+              board.led_green.set_high().unwrap();
+              uart_writeb_host(MAGIC_HOST_SUCCESS);
+            } else {
+              board.led_red.set_high().unwrap();
+              uart_writeb_host(MAGIC_HOST_FAILURE);
+            }
           }
         }
         MAGIC_UNLOCK_GOOD => {
@@ -191,7 +202,7 @@ fn paired_fob_pairing() {
   let mut pair_syn_msg: [u8; 1 + LEN_PIN_ATTEMPT] = [MAGIC_PAIR_SYN; 1 + LEN_PIN_ATTEMPT];
   pair_syn_msg[1..].copy_from_slice(&pin);
   uart_write_board(&pair_syn_msg);
-  // log!("Paired fob: Sent PAIR_SYN to unpaired fob");
+  log!("Paired fob: Sent PAIR_SYN to unpaired fob");
 
   // 3. Compute hash of FOB_SALT + PIN
   let mut salt_w: [u32; LENW_FOB_SALT] = [0; LENW_FOB_SALT];
@@ -314,7 +325,7 @@ fn paired_fob_pairing() {
     return
   }
 
-  // log!("Paired fob: PAIR transaction completed");
+  log!("Paired fob: PAIR transaction completed");
 }
 
 /// Handle PAIR_SYN
@@ -572,13 +583,10 @@ fn unlock_send_features() {
 /// Handle ENAB_FEAT
 fn enable_feature() {
   // 1. Read in data
-  let mut feat_idx: [u8; LEN_FEAT_IDX] = [0; LEN_FEAT_IDX];
   let mut feat_num: [u8; LEN_FEAT] = [0; LEN_FEAT];
   let mut feat_sig: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
-  uart_read_host(&mut feat_idx);
   uart_read_host(&mut feat_num);
   uart_read_host(&mut feat_sig);
-  // log!("Paired fob: ENAB_FEAT feature index: {:x?}", feat_idx);
   // log!("Paired fob: ENAB_FEAT feature number: {:x?}", feat_num);
   // log!("Paired fob: ENAB_FEAT feature signature: {:x?}", feat_sig);
 
@@ -589,24 +597,43 @@ fn enable_feature() {
   bytes_to_words(&feat_sig, &mut feat_sig_w);
 
   // 3. Write the data elements to EEPROM
-  if feat_idx[0] == 0x1 {
+  // Use the next available slot, based on the number of features already stored
+  let num_features = get_num_features();
+  if num_features == 0 {
     eeprom_write(&feat_num_w, FOBMEM_FEAT_1);
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_1_SIG);
-    // log!("Paired fob: Feature written to slot 1");
-  } else if feat_idx[0] == 0x2 {
+    inc_num_features();
+  } else if num_features == 1 {
     eeprom_write(&feat_num_w, FOBMEM_FEAT_2);
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_2_SIG);
-    // log!("Paired fob: Feature written to slot 2");
-  } else if feat_idx[0] == 0x3 {
+    inc_num_features();
+  } else if num_features == 2 {
     eeprom_write(&feat_num_w, FOBMEM_FEAT_3);
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_3_SIG);
-    // log!("Paired fob: Feature written to slot 3");
+    inc_num_features();
   } else {
-    // log!("Paired fob: Received invalid feature index: {:x?}", feat_idx[0]);
+    log!("Paired fob: ERROR: Too many features stored in EEPROM");
+    uart_writeb_host(MAGIC_HOST_FAILURE);
     return;
   }
 
   // log!("Paired fob: Feature enabled");
+  uart_writeb_board(MAGIC_HOST_SUCCESS);
+}
+
+/// Get the number of features stored in EEPROM.
+fn get_num_features() -> u32 {
+  let mut num_features: [u32; 1] = [0;1];
+  eeprom_read(&mut num_features, FOBMEM_NUM_FEAT);
+  num_features[0]
+}
+
+/// Increment the number of features
+fn inc_num_features() {
+  let mut num_features: [u32; 1] = [0;1];
+  eeprom_read(&mut num_features, FOBMEM_NUM_FEAT);
+  num_features[0] += 1;
+  eeprom_write(&num_features, FOBMEM_NUM_FEAT);
 }
 
 /// Check the paired flag in EEPROM. Returns 1 if paired, 0 if not paired.

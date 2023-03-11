@@ -36,6 +36,9 @@ hashes)
 PIN
 - `FOB_IS_PAIRED` - 4 bytes, 1 if fob is paired, 0 if unpaired
 
+### Enable features specific state
+- `NUM_FEAT` - 4 bytes, number of features enabled (1, 2, or 3)
+
 ### Unlocking-specific state
 - `NONCE` - 8 bytes, random number used to prevent replay attacks
 - `NONCE_SIG` - 64 bytes, P-256 signature of `NONCE` from car or fob
@@ -112,6 +115,8 @@ PIN
 0x400├─────────────────────┼───┤
      │FOB_IS_PAIRED        │RW │
 0x404├─────────────────────┼───┤
+     │NUM_FEAT             │RW │
+0x408├─────────────────────┼───┤
      │                     │-  │
 0x700├─────────────────────┼───┤ <-- End of allowed PARED EEPROM
      │Feature 3 Message    │R  │
