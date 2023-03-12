@@ -114,8 +114,10 @@ fn unlock_start(rng: &mut (impl CryptoRng + RngCore), board: &mut Board, timer_e
   // Start timeout timer for 500ms, need time to rx from fob
   start_delay_timer_us(500_000);
 
+  // Update timer entropy
   let new_timer_entropy = get_timer_entropy();
   *timer_entropy ^= u64::from_ne_bytes(new_timer_entropy[0..8].try_into().unwrap());
+  
   // Initialize car nonce with random value :) it's very random
   let mut car_nonce: u64 = rng.next_u64() ^ *timer_entropy;
   let car_nonce_b: [u8; 8] = car_nonce.to_be_bytes();
