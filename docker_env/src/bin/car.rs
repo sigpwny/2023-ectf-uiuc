@@ -6,11 +6,11 @@ use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
   driverlib::*,
-  log, setup_board, Board, words_to_bytes, Signer, Verifier, get_combined_entropy, update_entropy_with_timer
+  log, setup_board, Board, words_to_bytes, Signer, Verifier, get_combined_entropy
 };
 
 use p256_cortex_m4::{SecretKey, Signature, PublicKey};
-use rand_chacha::rand_core::{SeedableRng, RngCore};
+use rand_chacha::rand_core::{SeedableRng, RngCore, CryptoRng};
 
 
 /**
@@ -20,7 +20,7 @@ const CARMEM_CAR_SECRET:      u32 = 0x100;
 const CARMEM_MAN_PUBLIC:      u32 = 0x120;
 const CARMEM_FOB_PUBLIC:      u32 = 0x160;
 const CARMEM_CAR_ID:          u32 = 0x200;
- 
+
 const CARMEM_MSG_FEAT_3:      u32 = 0x700;
 const CARMEM_MSG_FEAT_2:      u32 = 0x740;
 const CARMEM_MSG_FEAT_1:      u32 = 0x780;
@@ -86,8 +86,9 @@ const MSGLEN_UNLOCK_FEAT:     usize = LEN_FEAT_SIG * 3;
 fn main() -> ! {
   let mut board: Board = setup_board();
 
-  let mut entropy: [u8; 32] = get_combined_entropy();
-  update_entropy_with_timer(&mut entropy);
+  // Seed RNG with entropy sources
+  let entropy: [u8; 32] = get_combined_entropy();
+  let mut rng = rand_chacha::ChaChaRng::from_seed(entropy);
 
   loop {
     if uart_avail_board() {
@@ -96,8 +97,7 @@ fn main() -> ! {
         MAGIC_UNLOCK_REQ => {
           // log!("Car: Received UNLOCK_REQ");
           board.led_blue.set_high().unwrap();
-          update_entropy_with_timer(&mut entropy);
-          unlock_start(&mut entropy, &mut board);
+          unlock_start(&mut rng, &mut board);
           board.led_blue.set_low().unwrap();
         }
         _ => {
@@ -109,12 +109,12 @@ fn main() -> ! {
 }
 
 /// Handle UNLOCK_REQ
-fn unlock_start(entropy: &[u8; 32], board: &mut Board) {
-  // Initialize RNG
-  let mut rng = rand_chacha::ChaChaRng::from_seed(*entropy);
+fn unlock_start(rng: &mut (impl CryptoRng + RngCore), board: &mut Board) {
+  // Start timeout timer for 500ms, need time to rx from fob
+  start_delay_timer_us(500_000);
 
   // Initialize car nonce with random value :) it's very random
-  let mut car_nonce: u64 = rng.next_u64();
+  let mut car_nonce: u64 = rng.next_u64() ^ get_tick_timer();
   let car_nonce_b: [u8; 8] = car_nonce.to_be_bytes();
 
   // Get car secret key
@@ -127,7 +127,7 @@ fn unlock_start(entropy: &[u8; 32], board: &mut Board) {
   // Use the car secret key to sign the nonce
   let car_signed_nonce: [u8; LEN_NONCE_SIG] = car_secret.sign(&car_nonce_b, rng).to_untagged_bytes();
 
-	// Send unlock chal and nonce to fob
+  // Send unlock chal and nonce to fob
   let mut unlock_chal_msg: [u8; 1 + MSGLEN_UNLOCK_CHAL] = [MAGIC_UNLOCK_CHAL; 1 + MSGLEN_UNLOCK_CHAL];
   unlock_chal_msg[1..1 + LEN_NONCE].copy_from_slice(&car_nonce_b);
   unlock_chal_msg[1 + LEN_NONCE..].copy_from_slice(&car_signed_nonce);
@@ -165,7 +165,7 @@ fn unlock_start(entropy: &[u8; 32], board: &mut Board) {
   fob_signed_nonce.copy_from_slice(&unlock_resp_msg[LEN_NONCE..]);
   // log!("Car: Received nonce signature value: {:x?}", &fob_signed_nonce);
 
-  // Check fob signature against car_nonce, NOT fob_nonce received from UART
+  // We check fob signature against car_nonce, NOT fob_nonce received from UART
   car_nonce += 1;
   let fob_nonce_b: [u8; 8] = car_nonce.to_be_bytes();
 
@@ -180,6 +180,8 @@ fn unlock_start(entropy: &[u8; 32], board: &mut Board) {
   let fob_nonce_sig = Signature::from_untagged_bytes(&fob_signed_nonce).unwrap();
   // Verify the signature with the message and public key
   let fob_nonce_verified: bool = fob_pubkey.verify(&fob_nonce_b, &fob_nonce_sig);
+
+  wait_delay_timer();
 
   if fob_nonce_verified {
     // yay unlock ze car

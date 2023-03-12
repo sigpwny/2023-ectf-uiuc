@@ -183,6 +183,7 @@ void sleep_us(uint32_t us) {
  */
 void start_delay_timer_us(uint32_t us) {
   uint32_t cycles = ((uint64_t)(us) * (uint64_t)(SysCtlClockGet())) / 1e6;
+  TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
   TimerLoadSet(TIMER0_BASE, TIMER_A, cycles);
   TimerEnable(TIMER0_BASE, TIMER_A);
 }

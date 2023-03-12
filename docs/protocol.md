@@ -226,3 +226,12 @@ enabled feature.
 > **Warning**  
 > Car MUST include feature number and car ID combined/concatenated to validate 
 > signature.
+
+### UNLOCK_RST
+If received, the fob or car will exit the current unlocking transaction 
+(reset). The fob or car is not guaranteed to be listening for a reset.
+
+|             | Magic     |
+| ----------- | --------- |
+| **Bytes**   | `\x69`    |
+| **Offsets** | 0x0 - 0x1 |

@@ -9,6 +9,9 @@ use tiva::{
     log, setup_board, sha256, Board, Signer, Verifier, get_combined_entropy
 };
 
+/// This code is not utilized by the final device code. It is used as a test
+/// playgroud.
+
 #[entry]
 fn main() -> ! {
     let mut board: Board = setup_board();

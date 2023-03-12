@@ -238,6 +238,15 @@ fn paired_fob_pairing() {
     return
   }
 
+  // Took too long...
+  if get_remaining_us_delay_timer() < 100_000 {
+    wait_delay_timer();
+    sleep_us(4_000_000);
+    uart_writeb_board(MAGIC_PAIR_RST);
+    log!("Paired fob: Sent PAIR_RST to unpaired fob");
+    return
+  }
+
   // 5. Compute hash equality
   let mut eeprom_pin_hash_w: [u32; LENW_PIN_HASH] = [0; LENW_PIN_HASH];
   eeprom_read(&mut eeprom_pin_hash_w, FOBMEM_PIN_HASH);
@@ -298,6 +307,7 @@ fn paired_fob_pairing() {
     uart_write_board(&mut feature_sig3);
     uart_write_board(&mut car_public);
     // log!("Paired fob: Sent PAIR_FIN to unpaired fob");
+    wait_delay_timer();
   } else {
     // PIN is incorrect, block for 5 seconds and then send PAIR_RST
     wait_delay_timer();
@@ -314,9 +324,6 @@ fn paired_fob_pairing() {
 
 /// Handle PAIR_SYN
 fn unpaired_fob_pairing() {
-  // Setup timeout so we don't spin forever on error condition
-  start_delay_timer_us(10_000_000);
-
   // 1. Read PIN from UART
   let mut pin: [u8; LEN_PIN_ATTEMPT] = [0; LEN_PIN_ATTEMPT];
   uart_read_board(&mut pin);
@@ -352,9 +359,6 @@ fn unpaired_fob_pairing() {
           // log!("Unpaired fob: Received invalid magic byte: {:x?}", magic);
         }
       }
-    }
-    if get_remaining_us_delay_timer() == 0 {
-      return
     }
   }
 

@@ -1,6 +1,6 @@
 # State
 
-State used in our implementation of PwnyPARED. All variables are 
+State used in our implementation of PwnyPARED. All values are 
 unsigned unless otherwise specified.
 
 ## Secrets

@@ -7,12 +7,13 @@ use core::{slice, array::from_fn};
 
 use driverlib::{get_temp_samples, get_tick_timer};
 use p256_cortex_m4::{SecretKey, Signature, PublicKey};
-use rand_chacha::{rand_core::{CryptoRng, RngCore, SeedableRng}, ChaChaRng};
+use rand_chacha::rand_core::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
 pub use tiva::board::Board;
 
 /// Sets up the Tiva development board. This includes setting up all the
 /// peripherals we use for eCTF, including EEPROM, UART, and GPIO.
+/// See wrapper.c for more information.
 pub fn setup_board() -> Board {
     let board = Board::new();
     driverlib::init_system();
@@ -55,6 +56,7 @@ macro_rules! log {
     }
 }
 
+/// Reads all of SRAM and hashes it to get a 32-byte entropy value.
 pub fn get_ram_entropy() -> [u8; 32] {
     let memory: &[u8];
     unsafe {
@@ -64,6 +66,8 @@ pub fn get_ram_entropy() -> [u8; 32] {
     sha256(memory)
 }
 
+/// Gets 1024 samples from the temperature sensor and hashes them to get a
+/// 32-byte entropy value.
 pub fn get_temp_entropy() -> [u8; 32] {
     let mut samples = [0u32; 8];
     let mut samples_lsb;
@@ -76,24 +80,27 @@ pub fn get_temp_entropy() -> [u8; 32] {
     hash.finalize().into()
 }
 
+/// Gets 128 samples from the tick timer and hashes them to get a 32-byte
+/// entropy value.
+pub fn get_timer_entropy() -> [u8; 32] {
+    let mut hash = Sha256::new();
+    for _ in 0..128 {
+        hash.update(get_tick_timer().to_ne_bytes())
+    }
+    hash.finalize().into()
+}
+
+/// Combines the entropy from the RAM, temperature sensor, and tick timer to
+/// get a 32-byte entropy value.
 pub fn get_combined_entropy() -> [u8; 32] {
     let ram_entropy = get_ram_entropy();
     let temp_entropy = get_temp_entropy();
-    from_fn(|i| ram_entropy[i] ^ temp_entropy[i])
+    let timer_entropy = get_timer_entropy();
+    from_fn(|i| ram_entropy[i] ^ temp_entropy[i] ^ timer_entropy[i])
 }
 
-pub fn update_entropy_with_timer(entropy: &mut [u8; 32]) {
-    // Initialize RNG using entropy as seed
-    let mut rng = ChaChaRng::from_seed(*entropy);
-    // "I used the entropy to write the entropy"
-    rng.fill_bytes(entropy);
-    let hash: [u8; 32] = sha256(&get_tick_timer().to_be_bytes());
-    for i in 0..32 {
-        entropy[i] ^= hash[i];
-    }
-}
-
-// https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/lib.rs#L27-L33
+/// Hashes a message using SHA-256.
+/// https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/lib.rs#L27-L33
 pub fn sha256(message: &[u8]) -> [u8; 32] {
     let mut hash = Sha256::new();
     hash.update(message);
@@ -101,10 +108,12 @@ pub fn sha256(message: &[u8]) -> [u8; 32] {
     data.into()
 }
 
+/// Signs a message using the ECDSA algorithm.
 pub trait Signer {
     fn sign(&self, message: &[u8], rng: impl CryptoRng + RngCore) -> Signature;
 }
 
+/// Implementation of signature generation using the ECDSA algorithm.
 impl Signer for SecretKey {
     // https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/cortex_m4.rs#L187-L190
     fn sign(&self, message: &[u8], rng: impl CryptoRng + RngCore) -> Signature {
@@ -113,10 +122,12 @@ impl Signer for SecretKey {
     }
 }
 
+/// Verifies a signature using the ECDSA algorithm.
 pub trait Verifier {
     fn verify(&self, message: &[u8], signature: &Signature) -> bool;
 }
 
+/// Implementation of signature validation using the ECDSA algorithm.
 impl Verifier for PublicKey {
     // https://github.com/ycrypto/p256-cortex-m4/blob/290b275c08ef8964eda308ea56c888c1cf0fa06a/src/cortex_m4.rs#L302-L305
     fn verify(&self, message: &[u8], signature: &Signature) -> bool {
