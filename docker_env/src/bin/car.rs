@@ -6,7 +6,7 @@ use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
   driverlib::*,
-  log, setup_board, Board, words_to_bytes, Signer, Verifier, get_combined_entropy
+  log, setup_board, Board, words_to_bytes, Signer, Verifier, get_combined_entropy, get_timer_entropy
 };
 
 use p256_cortex_m4::{SecretKey, Signature, PublicKey};
@@ -88,6 +88,7 @@ fn main() -> ! {
 
   // Seed RNG with entropy sources
   let entropy: [u8; 32] = get_combined_entropy();
+  let mut timer_entropy: u64 = 0;
   let mut rng = rand_chacha::ChaChaRng::from_seed(entropy);
 
   loop {
@@ -97,7 +98,7 @@ fn main() -> ! {
         MAGIC_UNLOCK_REQ => {
           // log!("Car: Received UNLOCK_REQ");
           board.led_blue.set_high().unwrap();
-          unlock_start(&mut rng, &mut board);
+          unlock_start(&mut rng, &mut board, &mut timer_entropy);
           board.led_blue.set_low().unwrap();
         }
         _ => {
@@ -109,12 +110,14 @@ fn main() -> ! {
 }
 
 /// Handle UNLOCK_REQ
-fn unlock_start(rng: &mut (impl CryptoRng + RngCore), board: &mut Board) {
+fn unlock_start(rng: &mut (impl CryptoRng + RngCore), board: &mut Board, timer_entropy: &mut u64) {
   // Start timeout timer for 500ms, need time to rx from fob
   start_delay_timer_us(500_000);
 
+  let new_timer_entropy = get_timer_entropy();
+  *timer_entropy ^= u64::from_ne_bytes(new_timer_entropy[0..8].try_into().unwrap());
   // Initialize car nonce with random value :) it's very random
-  let mut car_nonce: u64 = rng.next_u64() ^ get_tick_timer();
+  let mut car_nonce: u64 = rng.next_u64() ^ *timer_entropy;
   let car_nonce_b: [u8; 8] = car_nonce.to_be_bytes();
 
   // Get car secret key
