@@ -1,5 +1,5 @@
 target
-docker_env/tivaware/driverlib/gcc
+tivaware/driverlib/gcc
 
 # Ignore user config files
 .vscode

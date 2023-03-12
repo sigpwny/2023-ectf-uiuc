@@ -238,9 +238,8 @@ fn paired_fob_pairing() {
     return
   }
 
-  // Took too long... avoid leaking hash equality check timing
+  // Took too long...
   if get_remaining_us_delay_timer() < 100_000 {
-    log!("Paired fob: Initial pairing timeout, exiting to avoid side-channel");
     wait_delay_timer();
     sleep_us(4_000_000);
     uart_writeb_board(MAGIC_PAIR_RST);
