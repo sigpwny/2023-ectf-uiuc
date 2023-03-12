@@ -18,6 +18,8 @@ pub fn setup_board() -> Board {
     driverlib::init_system();
     board
 }
+
+/// Converts an array of u8 to an array of u32
 pub fn bytes_to_words(bytes: &[u8], words: &mut [u32]) {
     assert!(bytes.len() %4 == 0 && words.len() *4 == bytes.len());
     if bytes.len() % 4 == 0 && words.len() *4 == bytes.len() {
@@ -27,7 +29,7 @@ pub fn bytes_to_words(bytes: &[u8], words: &mut [u32]) {
     }
 }
 
-// convert an array of u32 to an array of u8
+/// Converts an array of u32 to an array of u8
 pub fn words_to_bytes(words: &[u32], bytes: &mut [u8]) {
     assert!(bytes.len() %4 == 0 && words.len() *4 == bytes.len());
     if bytes.len() % 4 == 0 && words.len() *4 == bytes.len() {
@@ -40,8 +42,6 @@ pub fn words_to_bytes(words: &[u32], bytes: &mut [u8]) {
         }
     }
 }
-
-
 
 /// Pass directly to hprintln if we are not in debug mode. Otherwise, do
 /// nothing.

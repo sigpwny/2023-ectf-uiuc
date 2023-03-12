@@ -17,7 +17,6 @@ pin_hash = None
 car_id = None
 car_public = None
 fob_is_paired = b"\x00\x00\x00\x00"
-num_feat = b"\x00\x00\x00\x00"
 
 # If we are configuring a paired fob...
 if len(sys.argv) > 4:
@@ -47,15 +46,11 @@ addresses = {
     "FOBMEM_FOB_SALT":       [0x140, fob_salt],
     "FOBMEM_PIN_HASH":       [0x160, pin_hash],
     "FOBMEM_CAR_ID":         [0x200, car_id],
-    "FOBMEM_FEAT_1":         [0x204, None],
-    "FOBMEM_FEAT_2":         [0x208, None],
-    "FOBMEM_FEAT_3":         [0x20C, None],
     "FOBMEM_FEAT_1_SIG":     [0x240, None],
     "FOBMEM_FEAT_2_SIG":     [0x280, None],
     "FOBMEM_FEAT_3_SIG":     [0x2C0, None],
     "FOBMEM_CAR_PUBLIC":     [0x300, car_public],
     "FOBMEM_FOB_IS_PAIRED":  [0x400, fob_is_paired],
-    "FOBMEM_NUM_FEAT":       [0x404, num_feat],
     "FOBMEM_MSG_FEAT_3":     [0x700, None],
     "FOBMEM_MSG_FEAT_2":     [0x740, None],
     "FOBMEM_MSG_FEAT_1":     [0x780, None],
