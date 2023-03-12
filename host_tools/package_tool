@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -u
+#!/usr/bin/env python3
 
 # @file package_tool
 # @author Frederich Stine
@@ -33,7 +33,7 @@ def package(package_name, car_id, feature_number):
     car_id_b = int(car_id).to_bytes(4, "big")
 
     # Pad feature number to 4 bytes
-    feat_b = int(feature_number).to_bytes(4, "big") // TODO
+    feat_b = feature_number.to_bytes(4, "big")
 
     # Create package
     message = car_id_b + feat_b
