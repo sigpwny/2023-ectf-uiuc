@@ -119,16 +119,16 @@ static void tick_timer_init(void) {
  */
 void init_system(void) {
   // Set the clocking to run directly from the crystal.
-  SysCtlClockSet(SYSCTL_SYSDIV_2_5 | SYSCTL_USE_PLL | SYSCTL_OSC_INT);
+  // SysCtlClockSet(SYSCTL_SYSDIV_2_5 | SYSCTL_USE_PLL | SYSCTL_OSC_INT);
+
+  // Initialize the ADC temperature sensor
+  adc_init();
 
   // Initialize the delay timer
   delay_timer_init();
 
   // Initialize the tick timer
   tick_timer_init();
-
-  // Initialize the ADC temperature sensor
-  adc_init();
 
   // Ensure EEPROM peripheral is enabled
   SysCtlPeripheralEnable(SYSCTL_PERIPH_EEPROM0);
