@@ -40,7 +40,7 @@ def pair(unpaired_fob_bridge, paired_fob_bridge, pair_pin):
     try:
         pair_success = unpaired_sock.recv(1)
         if pair_success == b"\xAA":
-            print("Fob paired successfully")
+            print("Paired")
         elif pair_success == b"\xBB":
             print("Fob pairing failed")
         else:
