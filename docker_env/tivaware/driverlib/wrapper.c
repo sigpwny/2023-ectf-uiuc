@@ -118,6 +118,14 @@ static void tick_timer_init(void) {
  * This function initializes the system peripherals and sets up the board link.
  */
 void init_system(void) {
+  // Set the clocking to run directly from the crystal.
+  // SysCtlClockSet(SYSCTL_SYSDIV_2_5 | SYSCTL_USE_PLL | SYSCTL_OSC_INT);
+
+  // Check if ADC is enabled
+  if (!SysCtlPeripheralPresent(SYSCTL_PERIPH_ADC0)) {
+    while (1) {}
+  }
+
   // Initialize the ADC temperature sensor
   // adc_init();
 
