@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -u
+#!/usr/bin/env python3
 
 # @file enable_tool
 # @author Frederich Stine
@@ -24,28 +24,31 @@ def enable(fob_bridge, package_name):
     # Connect fob socket to serial
     fob_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     fob_sock.connect(("ectf-net", int(fob_bridge)))
-
-    # Send enable command to fob
-    fob_sock.send(b"enable\n")
+    fob_sock.settimeout(5)
 
     # Open and read binary data from package file
     with open(f"/package_dir/{package_name}", "rb") as fhandle:
-        message = fhandle.read()
+        feat_package = fhandle.read()
+
+    # Construct ENAB_FEAT message
+    enab_feat_msg = b"\x50" + feat_package
 
     # Send package to fob
-    fob_sock.send(message)
+    fob_sock.send(enab_feat_msg)
 
-    # Set timeout for if enable fails
-    fob_sock.settimeout(5)
     # Try to receive data - if failed, enabling failed
     try:
-        enable_success = fob_sock.recv(7)
-        while len(enable_success) != 7:
-            enable_success += fob_sock.recv(7 - len(enable_success))
+        enable_success = fob_sock.recv(1)
+        if enable_success == b"\xAA":
+            print("Feature enabled successfully")
+        elif enable_success == b"\xBB":
+            print("Feature enabling failed")
+        else:
+            print("Unknown response from fob")
 
         print(enable_success)
     except socket.timeout:
-        print("Failed to enable feature")
+        print("Timeout while waiting for response from fob")
 
     return 0
 

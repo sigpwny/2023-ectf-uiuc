@@ -6,7 +6,6 @@ use embedded_hal::digital::v2::OutputPin;
 
 use tiva::{
   driverlib::*,
-  driverlib::{self},
   log, setup_board, Board, words_to_bytes, bytes_to_words, Signer, Verifier, sha256
 };
 
@@ -20,10 +19,7 @@ const FOBMEM_FOB_SECRET:      u32 = 0x100;
 const FOBMEM_FOB_SECRET_ENC:  u32 = 0x120;
 const FOBMEM_FOB_SALT:        u32 = 0x140;
 const FOBMEM_PIN_HASH:        u32 = 0x160;
-const FOBMEM_CAR_ID:          u32 = 0x200; // unused
-const FOBMEM_FEAT_1:          u32 = 0x204;
-const FOBMEM_FEAT_2:          u32 = 0x208;
-const FOBMEM_FEAT_3:          u32 = 0x20C;
+const FOBMEM_CAR_ID:          u32 = 0x200;
 const FOBMEM_FEAT_1_SIG:      u32 = 0x240;
 const FOBMEM_FEAT_2_SIG:      u32 = 0x280;
 const FOBMEM_FEAT_3_SIG:      u32 = 0x2C0;
@@ -47,7 +43,6 @@ const LEN_CAR_PUBLIC:         usize = 64;
 const LEN_MAN_SECRET:         usize = 32;
 const LEN_MAN_PUBLIC:         usize = 64;
 const LEN_CAR_ID:             usize = 4; // 1 byte at heart
-const LEN_FEAT:               usize = 4; // 1 byte at heart
 const LEN_FEAT_SIG:           usize = 64;
 const LEN_FLAG:               usize = 64;
 
@@ -59,7 +54,6 @@ const LENW_CAR_PUBLIC:        usize = LEN_CAR_PUBLIC / 4;
 const LENW_MAN_SECRET:        usize = LEN_MAN_SECRET / 4;
 const LENW_MAN_PUBLIC:        usize = LEN_MAN_PUBLIC / 4;
 const LENW_CAR_ID:            usize = LEN_CAR_ID / 4;
-const LENW_FEAT:              usize = LEN_FEAT / 4;
 const LENW_FEAT_SIG:          usize = LEN_FEAT_SIG / 4;
 const LENW_FLAG:              usize = LEN_FLAG / 4;
 
@@ -82,7 +76,8 @@ const LENW_FOB_IS_PAIRED:     usize = LEN_FOB_IS_PAIRED / 4;
  * Temporary state lengths
  */
 const LEN_PIN_ATTEMPT:        usize = 3;
-const LEN_FEAT_IDX:           usize = 1;
+const LEN_FEAT_NUM:           usize = 4; // value of 1, 2, or 3
+const LENW_FEAT_NUM:          usize = LEN_FEAT_NUM / 4;
 
 /**
  * Magic Bytes
@@ -92,6 +87,7 @@ const MAGIC_PAIR_SYN:         u8 = 0x41;
 const MAGIC_PAIR_ACK:         u8 = 0x42;
 const MAGIC_PAIR_FIN:         u8 = 0x43;
 const MAGIC_PAIR_RST:         u8 = 0x44;
+
 const MAGIC_ENAB_FEAT:        u8 = 0x50;
 
 const MAGIC_UNLOCK_REQ:       u8 = 0x60;
@@ -101,7 +97,8 @@ const MAGIC_UNLOCK_GOOD:      u8 = 0x63;
 const MAGIC_UNLOCK_FEAT:      u8 = 0x64;
 const MAGIC_UNLOCK_RST:       u8 = 0x69;
 
-
+const MAGIC_HOST_SUCCESS:     u8 = 0xAA;
+const MAGIC_HOST_FAILURE:     u8 = 0xBB;
 
 /**
  * Message lengths
@@ -110,24 +107,24 @@ const MSGLEN_PAIR_REQ:        usize = LEN_PIN_ATTEMPT;
 const MSGLEN_PAIR_SYN:        usize = LEN_PIN_ATTEMPT;
 const MSGLEN_PAIR_FIN:        usize = LEN_FOB_SECRET_ENC + 
                                       LEN_CAR_ID + 
-                                      (LEN_FEAT * 3) + 
                                       (LEN_FEAT_SIG * 3) + 
                                       LEN_CAR_PUBLIC;
-                                      // features sent in index order (1, 2, 3)
+                                      // Features sent in index order (1, 2, 3)
 const MSGLEN_UNLOCK_CHAL:     usize = LEN_NONCE + LEN_NONCE_SIG;
 const MSGLEN_UNLOCK_RESP:     usize = LEN_NONCE + LEN_NONCE_SIG;
-const MSGLEN_UNLOCK_FEAT:     usize = (LEN_FEAT * 3) + (LEN_FEAT_SIG * 3);
+const MSGLEN_UNLOCK_FEAT:     usize = LEN_FEAT_SIG * 3;
 
 #[entry]
 fn main() -> ! {
   let mut board: Board = setup_board();
 
   loop {
-    if read_sw_1() {
-      request_unlock();
+    // TODO: add LED resets
+    if read_sw_1() && is_paired() {
+      request_unlock(&mut board);
     }
-    if driverlib::uart_avail_host() {
-      let magic: u8 = driverlib::uart_readb_host();
+    if uart_avail_host() {
+      let magic: u8 = uart_readb_host();
       match magic {
         MAGIC_PAIR_REQ => {
           if is_paired() {
@@ -135,17 +132,28 @@ fn main() -> ! {
             board.led_blue.set_high().unwrap();
             paired_fob_pairing();
             board.led_blue.set_low().unwrap();
+          } else {
+            // log!("Unpaired fob: Received invalid PAIR_REQ");
+            board.led_red.set_high().unwrap();
+            uart_writeb_host(MAGIC_HOST_FAILURE);
+            sleep_us(1_000_000);
+            board.led_red.set_low().unwrap();
           }
         }
         MAGIC_ENAB_FEAT => {
           if is_paired() {
             // log!("Paired fob: Received ENAB_FEAT");
-            board.led_red.set_high().unwrap();
+            board.led_green.set_high().unwrap();
             enable_feature();
+            board.led_green.set_low().unwrap();
+          } else {
+            // log!("Unpaired fob: Received invalid ENAB_FEAT");
+            board.led_red.set_high().unwrap();
+            uart_writeb_host(MAGIC_HOST_FAILURE);
+            sleep_us(1_000_000);
             board.led_red.set_low().unwrap();
           }
         }
-        // Add other magic bytes here
         _ => {
           // log!("Received invalid magic byte from host: {:x?}", magic);
         }
@@ -160,15 +168,20 @@ fn main() -> ! {
             board.led_blue.set_high().unwrap();
             unpaired_fob_pairing();
             board.led_blue.set_low().unwrap();
+            if is_paired() {
+              board.led_green.set_high().unwrap();
+              uart_writeb_host(MAGIC_HOST_SUCCESS);
+              sleep_us(1_000_000);
+              board.led_green.set_low().unwrap();
+            } else {
+              // log!("Unpaired fob: Failed to pair");
+              board.led_red.set_high().unwrap();
+              uart_writeb_host(MAGIC_HOST_FAILURE);
+              sleep_us(1_000_000);
+              board.led_red.set_low().unwrap();
+            }
           }
         }
-        MAGIC_UNLOCK_GOOD => {
-          log!("Unlocked fob: Received UNLOCK_GOOD");
-          board.led_green.set_high().unwrap();
-          unlock_send_features();
-          board.led_green.set_low().unwrap();
-        }
-        // Add other magic bytes here
         _ => {
           // log!("Received invalid magic byte from board: {:x?}", magic);
         }
@@ -191,7 +204,7 @@ fn paired_fob_pairing() {
   let mut pair_syn_msg: [u8; 1 + LEN_PIN_ATTEMPT] = [MAGIC_PAIR_SYN; 1 + LEN_PIN_ATTEMPT];
   pair_syn_msg[1..].copy_from_slice(&pin);
   uart_write_board(&pair_syn_msg);
-  // log!("Paired fob: Sent PAIR_SYN to unpaired fob");
+  log!("Paired fob: Sent PAIR_SYN to unpaired fob");
 
   // 3. Compute hash of FOB_SALT + PIN
   let mut salt_w: [u32; LENW_FOB_SALT] = [0; LENW_FOB_SALT];
@@ -244,9 +257,6 @@ fn paired_fob_pairing() {
 
     let mut secret_enc_w: [u32; LENW_FOB_SECRET_ENC] = [0; LENW_FOB_SECRET_ENC];
     let mut car_id_w: [u32; LENW_CAR_ID] = [0; LENW_CAR_ID];
-    let mut feature1_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
-    let mut feature2_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
-    let mut feature3_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
     let mut feature_sig1_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
     let mut feature_sig2_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
     let mut feature_sig3_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
@@ -254,9 +264,6 @@ fn paired_fob_pairing() {
 
     let mut secret_enc: [u8; LEN_FOB_SECRET_ENC] = [0; LEN_FOB_SECRET_ENC];
     let mut car_id: [u8; LEN_CAR_ID] = [0; LEN_CAR_ID];
-    let mut feature1: [u8; LEN_FEAT] = [0; LEN_FEAT];
-    let mut feature2: [u8; LEN_FEAT] = [0; LEN_FEAT];
-    let mut feature3: [u8; LEN_FEAT] = [0; LEN_FEAT];
     let mut feature_sig1: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
     let mut feature_sig2: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
     let mut feature_sig3: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
@@ -264,9 +271,6 @@ fn paired_fob_pairing() {
 
     eeprom_read(&mut secret_enc_w, FOBMEM_FOB_SECRET_ENC);
     eeprom_read(&mut car_id_w, FOBMEM_CAR_ID);
-    eeprom_read(&mut feature1_w, FOBMEM_FEAT_1);
-    eeprom_read(&mut feature2_w, FOBMEM_FEAT_2);
-    eeprom_read(&mut feature3_w, FOBMEM_FEAT_3);
     eeprom_read(&mut feature_sig1_w, FOBMEM_FEAT_1_SIG);
     eeprom_read(&mut feature_sig2_w, FOBMEM_FEAT_2_SIG);
     eeprom_read(&mut feature_sig3_w, FOBMEM_FEAT_3_SIG);
@@ -274,9 +278,6 @@ fn paired_fob_pairing() {
 
     words_to_bytes(& secret_enc_w, &mut secret_enc);
     words_to_bytes(& car_id_w, &mut car_id);
-    words_to_bytes(& feature1_w, &mut feature1);
-    words_to_bytes(& feature2_w, &mut feature2);
-    words_to_bytes(& feature3_w, &mut feature3);
     words_to_bytes(& feature_sig1_w, &mut feature_sig1);
     words_to_bytes(& feature_sig2_w, &mut feature_sig2);
     words_to_bytes(& feature_sig3_w, &mut feature_sig3);
@@ -294,9 +295,6 @@ fn paired_fob_pairing() {
 
     // log!("secret {:x?}", secret);
     // log!("car_id {:x?}", car_id);
-    // log!("feature1 {:x?}", feature1);
-    // log!("feature2 {:x?}", feature2);
-    // log!("feature3 {:x?}", feature3);
     // log!("feature_sig1 {:x?}", feature_sig1);
     // log!("feature_sig2 {:x?}", feature_sig2);
     // log!("feature_sig3 {:x?}", feature_sig3);
@@ -305,9 +303,6 @@ fn paired_fob_pairing() {
     uart_writeb_board(MAGIC_PAIR_FIN);
     uart_write_board(&mut secret);
     uart_write_board(&mut car_id);
-    uart_write_board(&mut feature1);
-    uart_write_board(&mut feature2);
-    uart_write_board(&mut feature3);
     uart_write_board(&mut feature_sig1);
     uart_write_board(&mut feature_sig2);
     uart_write_board(&mut feature_sig3);
@@ -325,7 +320,7 @@ fn paired_fob_pairing() {
     return
   }
 
-  // log!("Paired fob: PAIR transaction completed");
+  log!("Paired fob: PAIR transaction completed");
 }
 
 /// Handle PAIR_SYN
@@ -342,9 +337,6 @@ fn unpaired_fob_pairing() {
 
   let mut secret: [u8; LEN_FOB_SECRET] = [0; LEN_FOB_SECRET];
   let mut car_id: [u8; LEN_CAR_ID] = [0; LEN_CAR_ID];
-  let mut feature1: [u8; LEN_FEAT] = [0; LEN_FEAT];
-  let mut feature2: [u8; LEN_FEAT] = [0; LEN_FEAT];
-  let mut feature3: [u8; LEN_FEAT] = [0; LEN_FEAT];
   let mut feature_sig1: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
   let mut feature_sig2: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
   let mut feature_sig3: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
@@ -374,9 +366,6 @@ fn unpaired_fob_pairing() {
   // 4. Receive data from paired fob
   uart_read_board(&mut secret);
   uart_read_board(&mut car_id);
-  uart_read_board(&mut feature1);
-  uart_read_board(&mut feature2);
-  uart_read_board(&mut feature3);
   uart_read_board(&mut feature_sig1);
   uart_read_board(&mut feature_sig2);
   uart_read_board(&mut feature_sig3);
@@ -385,9 +374,6 @@ fn unpaired_fob_pairing() {
 
   // log!("secret {:x?}", secret);
   // log!("car_id {:x?}", car_id);
-  // log!("feature1 {:x?}", feature1);
-  // log!("feature2 {:x?}", feature2);
-  // log!("feature3 {:x?}", feature3);
   // log!("feature_sig1 {:x?}", feature_sig1);
   // log!("feature_sig2 {:x?}", feature_sig2);
   // log!("feature_sig3 {:x?}", feature_sig3);
@@ -396,9 +382,6 @@ fn unpaired_fob_pairing() {
   // 5. Convert from bytes to words
   let mut secret_w: [u32; LENW_FOB_SECRET] = [0; LENW_FOB_SECRET];
   let mut car_id_w: [u32; LENW_CAR_ID] = [0; LENW_CAR_ID];
-  let mut feature1_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
-  let mut feature2_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
-  let mut feature3_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
   let mut feature_sig1_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
   let mut feature_sig2_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
   let mut feature_sig3_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
@@ -406,9 +389,6 @@ fn unpaired_fob_pairing() {
 
   bytes_to_words(&secret, &mut secret_w);
   bytes_to_words(&car_id, &mut car_id_w);
-  bytes_to_words(&feature1, &mut feature1_w);
-  bytes_to_words(&feature2, &mut feature2_w);
-  bytes_to_words(&feature3, &mut feature3_w);
   bytes_to_words(&feature_sig1, &mut feature_sig1_w);
   bytes_to_words(&feature_sig2, &mut feature_sig2_w);
   bytes_to_words(&feature_sig3, &mut feature_sig3_w);
@@ -426,7 +406,7 @@ fn unpaired_fob_pairing() {
   let mut saltpin_hash_w: [u32; LENW_PIN_HASH] = [0; LENW_PIN_HASH];
   bytes_to_words(&saltpin_hash, &mut saltpin_hash_w);
 
-  // 7. TODO: Create new FOB_SECRET_ENC by XOR encrypting FOB_SECRET with the SHA256 hash of PIN + FOB_SALT
+  // 7. Create new FOB_SECRET_ENC by XOR encrypting FOB_SECRET with the SHA256 hash of PIN + FOB_SALT
   let mut secret_enc: [u8; LEN_FOB_SECRET_ENC] = [0; LEN_FOB_SECRET_ENC];
   let mut secret_enc_w: [u32; LENW_FOB_SECRET_ENC] = [0; LENW_FOB_SECRET_ENC];
   let mut pinned_salt: [u8; LEN_PIN_ATTEMPT + 1 + LEN_FOB_SALT] = [0; LEN_PIN_ATTEMPT + 1 + LEN_FOB_SALT];
@@ -442,9 +422,6 @@ fn unpaired_fob_pairing() {
   eeprom_write(&secret_enc_w, FOBMEM_FOB_SECRET_ENC);
   eeprom_write(&secret_w, FOBMEM_FOB_SECRET);
   eeprom_write(&car_id_w, FOBMEM_CAR_ID);
-  eeprom_write(&feature1_w, FOBMEM_FEAT_1);
-  eeprom_write(&feature2_w, FOBMEM_FEAT_2);
-  eeprom_write(&feature3_w, FOBMEM_FEAT_3);
   eeprom_write(&feature_sig1_w, FOBMEM_FEAT_1_SIG);
   eeprom_write(&feature_sig2_w, FOBMEM_FEAT_2_SIG);
   eeprom_write(&feature_sig3_w, FOBMEM_FEAT_3_SIG);
@@ -458,7 +435,7 @@ fn unpaired_fob_pairing() {
 }
 
 /// Handle SW1 button press to unlock car
-fn request_unlock() {
+fn request_unlock(board: &mut Board) {
   // This does not need to be random since it is used for signature padding
   let rng = rand_chacha::ChaChaRng::from_seed([0; 32]);
 
@@ -484,6 +461,7 @@ fn request_unlock() {
   let mut unlock_chal_msg: [u8; MSGLEN_UNLOCK_CHAL] = [0; MSGLEN_UNLOCK_CHAL];
   uart_read_board(&mut unlock_chal_msg);
   log!("Fob: Received UNLOCK_CHAL from car");
+  board.led_blue.set_high().unwrap();
 
   // Read nonce from message
   let mut car_nonce_b: [u8; LEN_NONCE] = [0; LEN_NONCE];
@@ -506,6 +484,9 @@ fn request_unlock() {
   let car_nonce_sig = Signature::from_untagged_bytes(&car_nonce_sig_b).unwrap();
   if !car_public.verify(&car_nonce_b, &car_nonce_sig) {
     log!("Fob: Car nonce signature verification failed");
+    board.led_blue.set_low().unwrap();
+    board.led_red.set_high().unwrap();
+    uart_writeb_board(MAGIC_UNLOCK_RST);
     return;
   }
 
@@ -531,43 +512,57 @@ fn request_unlock() {
   // log!("Fob: Sending nonce: {:x?}", fob_nonce_b);
   // log!("Fob: Sending nonce signature: {:x?}", fob_signed_nonce);
   uart_write_board(&fob_signed_msg);
+  board.led_blue.set_low().unwrap();
+
   log!("Fob: Sent UNLOCK_RESP to car");
+  
+  // Receive UNLOCK_GOOD from car
+  loop {
+    if uart_avail_board() {
+      let magic: u8 = uart_readb_board();
+      match magic {
+        MAGIC_UNLOCK_GOOD => {
+          if is_paired() {
+            log!("Fob: Received UNLOCK_GOOD");
+            board.led_green.set_high().unwrap();
+            unlock_send_features();
+            board.led_green.set_low().unwrap();
+            return;
+          }
+        }
+        MAGIC_UNLOCK_RST => {
+          log!("Fob: Received UNLOCK_RST");
+          return;
+        }
+        _ => {
+          log!("Fob: Received unexpected message from car");
+        }
+      }
+    }
+    // TODO: timeout
+  }
 }
 
+/// Handle UNLOCK_GOOD
 fn unlock_send_features() {
   // Read features from EEPROM
-  let mut feature1_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
-  let mut feature2_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
-  let mut feature3_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
   let mut feature_sig1_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
   let mut feature_sig2_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
   let mut feature_sig3_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
-  eeprom_read(&mut feature1_w, FOBMEM_FEAT_1);
-  eeprom_read(&mut feature2_w, FOBMEM_FEAT_2);
-  eeprom_read(&mut feature3_w, FOBMEM_FEAT_3);
   eeprom_read(&mut feature_sig1_w, FOBMEM_FEAT_1_SIG);
   eeprom_read(&mut feature_sig2_w, FOBMEM_FEAT_2_SIG);
   eeprom_read(&mut feature_sig3_w, FOBMEM_FEAT_3_SIG);
 
   // Convert features to bytes
-  let mut feature1_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
-  let mut feature2_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
-  let mut feature3_b: [u8; LEN_FEAT] = [0; LEN_FEAT];
   let mut feature_sig1_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
   let mut feature_sig2_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
   let mut feature_sig3_b: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
-  words_to_bytes(&feature1_w, &mut feature1_b);
-  words_to_bytes(&feature2_w, &mut feature2_b);
-  words_to_bytes(&feature3_w, &mut feature3_b);
   words_to_bytes(&feature_sig1_w, &mut feature_sig1_b);
   words_to_bytes(&feature_sig2_w, &mut feature_sig2_b);
   words_to_bytes(&feature_sig3_w, &mut feature_sig3_b);
 
   // Send UNLOCK_FEAT to car
   uart_writeb_board(MAGIC_UNLOCK_FEAT);
-  uart_write_board(&feature1_b);
-  uart_write_board(&feature2_b);
-  uart_write_board(&feature3_b);
   uart_write_board(&feature_sig1_b);
   uart_write_board(&feature_sig2_b);
   uart_write_board(&feature_sig3_b);
@@ -577,52 +572,55 @@ fn unlock_send_features() {
 /// Handle ENAB_FEAT
 fn enable_feature() {
   // 1. Read in data
-  let mut feat_idx: [u8; LEN_FEAT_IDX] = [0; LEN_FEAT_IDX];
-  let mut feat_num: [u8; LEN_FEAT] = [0; LEN_FEAT];
+  let mut car_id: [u8; LEN_CAR_ID] = [0; LEN_CAR_ID];
+  let mut feat_num: [u8; LEN_FEAT_NUM] = [0; LEN_FEAT_NUM];
   let mut feat_sig: [u8; LEN_FEAT_SIG] = [0; LEN_FEAT_SIG];
-  uart_read_host(&mut feat_idx);
+  uart_read_host(&mut car_id);
   uart_read_host(&mut feat_num);
   uart_read_host(&mut feat_sig);
-  // log!("Paired fob: ENAB_FEAT feature index: {:x?}", feat_idx);
   // log!("Paired fob: ENAB_FEAT feature number: {:x?}", feat_num);
   // log!("Paired fob: ENAB_FEAT feature signature: {:x?}", feat_sig);
 
   // 2. Convert each data element to words
-  let mut feat_num_w: [u32; LENW_FEAT] = [0; LENW_FEAT];
+  let mut car_id_w: [u32; LENW_CAR_ID] = [0; LENW_CAR_ID];
+  let mut feat_num_w: [u32; LENW_FEAT_NUM] = [0; LENW_FEAT_NUM];
   let mut feat_sig_w: [u32; LENW_FEAT_SIG] = [0; LENW_FEAT_SIG];
+  bytes_to_words(&car_id, &mut car_id_w);
   bytes_to_words(&feat_num, &mut feat_num_w);
   bytes_to_words(&feat_sig, &mut feat_sig_w);
 
-  // 3. Write the data elements to EEPROM
-  if feat_idx[0] == 0x1 {
-    eeprom_write(&feat_num_w, FOBMEM_FEAT_1);
+  // Use as big endian word for comparison
+  let feat_num_w_be: u32 = feat_num_w[0].to_be();
+
+  // Block for 800ms
+  sleep_us(800_000);
+
+  // 3. Write the feature signature to EEPROM at the provided index
+  if feat_num_w_be == 1 {
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_1_SIG);
-    // log!("Paired fob: Feature written to slot 1");
-  } else if feat_idx[0] == 0x2 {
-    eeprom_write(&feat_num_w, FOBMEM_FEAT_2);
+  } else if feat_num_w_be == 2 {
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_2_SIG);
-    // log!("Paired fob: Feature written to slot 2");
-  } else if feat_idx[0] == 0x3 {
-    eeprom_write(&feat_num_w, FOBMEM_FEAT_3);
+  } else if feat_num_w_be == 3 {
     eeprom_write(&feat_sig_w, FOBMEM_FEAT_3_SIG);
-    // log!("Paired fob: Feature written to slot 3");
   } else {
-    // log!("Paired fob: Received invalid feature index: {:x?}", feat_idx[0]);
+    log!("Paired fob: Invalid feature number provided");
+    uart_writeb_host(MAGIC_HOST_FAILURE);
     return;
   }
 
   // log!("Paired fob: Feature enabled");
+  uart_writeb_host(MAGIC_HOST_SUCCESS);
 }
 
-/// Check the paired flag in EEPROM. Returns 1 if paired, 0 if not paired.
+/// Check the paired flag in EEPROM. Returns true if paired, false if unpaired.
 fn is_paired() -> bool {
-  let mut pair_status: [u32; 1] = [0;1];
+  let mut pair_status: [u32; LENW_FOB_IS_PAIRED] = [0; LENW_FOB_IS_PAIRED];
   eeprom_read(&mut pair_status, FOBMEM_FOB_IS_PAIRED);
-  pair_status[0] == 1 
+  pair_status[0] != 0
 }
 
 /// Set the paired flag in EEPROM to 1.
 fn set_paired() {
-  let mut pair_status: [u32; 1] = [1];
+  let mut pair_status: [u32; LENW_FOB_IS_PAIRED] = [1; LENW_FOB_IS_PAIRED];
   eeprom_write(&mut pair_status, FOBMEM_FOB_IS_PAIRED);
 }

@@ -17,9 +17,7 @@ unsigned unless otherwise specified.
 ## Variables
 ### General state
 - `CAR_ID` - 4 bytes
-- `FEAT_1` - 4 bytes
-- `FEAT_2` - 4 bytes
-- `FEAT_3` - 4 bytes
+- `FEAT_NUM` - 4 bytes, can only be values 1, 2, or 3
 - `FEAT_1_SIG` - 64 bytes, P-256 signature from manufacturer
 - `FEAT_2_SIG` - 64 bytes, P-256 signature from manufacturer
 - `FEAT_3_SIG` - 64 bytes, P-256 signature from manufacturer
@@ -38,7 +36,7 @@ PIN
 
 ### Unlocking-specific state
 - `NONCE` - 8 bytes, random number used to prevent replay attacks
-- `NONCE_SIG` - 64 bytes, P-256 signature of `NONCE` from car or fob
+- `NONCE_SIG` - 64 bytes, P-256 signature of `NONCE` from car or fob 
 
 ## EEPOM
 
@@ -87,17 +85,11 @@ PIN
      │                     │-  │
 0x160├─────────────────────┼───┤
      │PIN_HASH             │RW │
-  ???├─────────────────────┼───┤
+0x180├─────────────────────┼───┤
      │                     │-  │
 0x200├─────────────────────┼───┤
      │CAR_ID (unused)      │RW │
 0x204├─────────────────────┼───┤
-     │FEAT_1               │RW │
-0x208├─────────────────────┼───┤
-     │FEAT_2               │RW │
-0x20C├─────────────────────┼───┤
-     │FEAT_3               │RW │
-0x210├─────────────────────┼───┤
      │                     │-  │
 0x240├─────────────────────┼───┤
      │FEAT_1_SIG           │RW │
