@@ -238,15 +238,6 @@ fn paired_fob_pairing() {
     return
   }
 
-  // Took too long...
-  if get_remaining_us_delay_timer() < 100_000 {
-    wait_delay_timer();
-    sleep_us(4_000_000);
-    uart_writeb_board(MAGIC_PAIR_RST);
-    log!("Paired fob: Sent PAIR_RST to unpaired fob");
-    return
-  }
-
   // 5. Compute hash equality
   let mut eeprom_pin_hash_w: [u32; LENW_PIN_HASH] = [0; LENW_PIN_HASH];
   eeprom_read(&mut eeprom_pin_hash_w, FOBMEM_PIN_HASH);

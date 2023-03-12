@@ -119,7 +119,7 @@ static void tick_timer_init(void) {
  */
 void init_system(void) {
   // Initialize the ADC temperature sensor
-  adc_init();
+  // adc_init();
 
   // Initialize the delay timer
   delay_timer_init();
@@ -158,10 +158,10 @@ bool read_sw_1(void) {
  * @param samples The array to store the samples in.
  */
 void get_temp_samples(uint32_t* samples) {
-  ADCProcessorTrigger(ADC0_BASE, 0);
-  while (!ADCIntStatus(ADC0_BASE, 0, false)) {}
-  ADCIntClear(ADC0_BASE, 0);
-  ADCSequenceDataGet(ADC0_BASE, 0, samples);
+  // ADCProcessorTrigger(ADC0_BASE, 0);
+  // while (!ADCIntStatus(ADC0_BASE, 0, false)) {}
+  // ADCIntClear(ADC0_BASE, 0);
+  // ADCSequenceDataGet(ADC0_BASE, 0, samples);
 }
 
 /**
