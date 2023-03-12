@@ -40,7 +40,7 @@ def enable(fob_bridge, package_name):
     try:
         enable_success = fob_sock.recv(1)
         if enable_success == b"\xAA":
-            print("Feature enabled successfully")
+            print("Enabled")
         elif enable_success == b"\xBB":
             print("Feature enabling failed")
         else:
