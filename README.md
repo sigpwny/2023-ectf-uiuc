@@ -18,6 +18,7 @@ Our code is well-commented and should be easy to follow. Fob code can be found i
 
 Other useful information is documented below:
 
+- [Design Document](./docs/design-v1.3.pdf)
 - [PwnyPARED protocol](./docs/protocol.md)
 - [States and variables](./docs/state.md)
 
